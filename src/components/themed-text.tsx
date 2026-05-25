@@ -1,73 +1,47 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { Platform, Text, type TextProps } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useDS } from '@/design-system';
+import { type TypographyKey } from '@/design-system/tokens/typography';
+import { Fonts } from '@/constants/theme';
+
+type TextType = 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+type TextColor = 'text' | 'textSecondary';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
-  themeColor?: ThemeColor;
+  type?: TextType;
+  themeColor?: TextColor;
+};
+
+const typeToTypographyKey: Record<TextType, TypographyKey> = {
+  default:     'body/1',
+  small:       'label/1',
+  smallBold:   'label/1',
+  title:       'display/2',
+  subtitle:    'title/1',
+  link:        'label/1',
+  linkPrimary: 'label/1',
+  code:        'caption/1',
 };
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
-  const theme = useTheme();
+  const ds = useDS();
+
+  const color = themeColor === 'textSecondary'
+    ? ds.color.label.alternative
+    : ds.color.label.normal;
+
+  const typo = ds.typography[typeToTypographyKey[type]];
+
+  const typeOverride =
+    type === 'linkPrimary' ? { color: ds.color.brand.normal } :
+    type === 'smallBold'   ? { fontWeight: '700' as const } :
+    type === 'code'        ? { fontFamily: Fonts.mono, fontWeight: Platform.select({ android: '700' as const }) ?? ('500' as const) } :
+    undefined;
 
   return (
     <Text
-      style={[
-        { color: theme[themeColor ?? 'text'] },
-        type === 'default' && styles.default,
-        type === 'title' && styles.title,
-        type === 'small' && styles.small,
-        type === 'smallBold' && styles.smallBold,
-        type === 'subtitle' && styles.subtitle,
-        type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
-        type === 'code' && styles.code,
-        style,
-      ]}
+      style={[{ color }, typo, typeOverride, style]}
       {...rest}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  small: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 500,
-  },
-  smallBold: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 700,
-  },
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: 500,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
-  },
-  subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 14,
-  },
-  linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
-  },
-  code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
-  },
-});
