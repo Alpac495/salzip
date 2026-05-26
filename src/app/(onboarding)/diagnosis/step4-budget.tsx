@@ -112,7 +112,7 @@ export default function Step4BudgetScreen() {
         onPress={() => { if (canNext) router.push('/(onboarding)/diagnosis/step5-environment'); }}
         disabled={!canNext}
       >
-        <Text className={`text-[15px] font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>진단 시작</Text>
+        <Text className={`text-base font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>진단 시작</Text>
         <Ionicons name="checkmark-circle-outline" size={15} color={canNext ? 'white' : '#A1A1AA'} />
       </Pressable>
     </DiagnosisShell>

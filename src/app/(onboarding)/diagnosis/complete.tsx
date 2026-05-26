@@ -389,7 +389,7 @@ function EmptyState() {
         ))}
       </View>
       <Pressable
-        className="w-full bg-[#0A0A0B] rounded-xl py-3 flex-row items-center justify-center gap-1.5 active:opacity-75"
+        className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-1.5 active:opacity-75"
         onPress={() => router.replace('/(onboarding)/start')}
       >
         <Text className="text-[12px] font-bold text-white">조건 다시 진단하기</Text>

@@ -10,9 +10,7 @@ import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY } from '@/store/useSe
 
 export default function LoginScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const nextRoute = from === 'diagnosis'
-    ? '/(onboarding)/diagnosis/complete'
-    : '/(main)/hsubsidy';
+  const nextRoute = '/(onboarding)/diagnosis/complete';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,40 +72,47 @@ export default function LoginScreen() {
             </Pressable>
 
             {/* 타이틀 */}
-            <Text className="text-[28px] font-extrabold tracking-[-0.56px] text-[#0A0A0B] mb-1">
-              다시 만났어요
+            <Text className="text-[28px] font-extrabold tracking-[-0.56px] text-[#0A0A0B] mb-2">
+              <Text style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>다시</Text>
+              {' 만났어요'}
             </Text>
-            <Text className="text-[14px] text-[#71717A] mb-8">
+            <Text className="text-[14px] text-[#71717A] leading-[1.6] mb-8">
               계속하려면 로그인해주세요
             </Text>
 
             {/* 입력 폼 */}
-            <View className="gap-3 mb-2">
+            <View className="gap-4 mb-2">
               <View>
-                <Text className="text-[11px] font-semibold text-[#3F3F46] mb-1.5">이메일</Text>
-                <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocused('email')}
-                  onBlur={() => setFocused(null)}
-                  placeholder="이메일을 입력하세요"
-                  placeholderTextColor="#A1A1AA"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={{
-                    borderWidth: 1, borderColor: inputBorder('email'), borderRadius: 12,
-                    paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, color: '#0A0A0B',
-                  }}
-                />
+                <Text className="text-[13px] font-semibold text-[#0A0A0B] mb-2">이메일</Text>
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  borderWidth: 1, borderRadius: 12, paddingHorizontal: 14,
+                  borderColor: inputBorder('email'),
+                }}>
+                  <Ionicons name="mail-outline" size={18} color="#A1A1AA" style={{ marginRight: 10 }} />
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setFocused('email')}
+                    onBlur={() => setFocused(null)}
+                    placeholder="이메일을 입력하세요"
+                    placeholderTextColor="#A1A1AA"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={{ flex: 1, paddingVertical: 14, fontSize: 14, color: '#0A0A0B' }}
+                  />
+                </View>
               </View>
 
               <View>
-                <Text className="text-[11px] font-semibold text-[#3F3F46] mb-1.5">비밀번호</Text>
+                <Text className="text-[13px] font-semibold text-[#0A0A0B] mb-2">비밀번호</Text>
                 <View style={{
-                  borderWidth: 1, borderColor: inputBorder('password'), borderRadius: 12,
-                  paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center',
+                  flexDirection: 'row', alignItems: 'center',
+                  borderWidth: 1, borderRadius: 12, paddingHorizontal: 14,
+                  borderColor: inputBorder('password'),
                 }}>
+                  <Ionicons name="lock-closed-outline" size={18} color="#A1A1AA" style={{ marginRight: 10 }} />
                   <TextInput
                     value={password}
                     onChangeText={setPassword}
@@ -129,8 +134,8 @@ export default function LoginScreen() {
             </View>
 
             {/* 비밀번호 찾기 */}
-            <Pressable className="self-end mb-6 active:opacity-60">
-              <Text className="text-[12px] text-[#71717A]">비밀번호를 잊으셨나요?</Text>
+            <Pressable className="self-end mb-6 mt-1 active:opacity-60">
+              <Text className="text-[12px] text-[#A1A1AA]">비밀번호를 잊으셨나요?</Text>
             </Pressable>
 
             {/* 에러 */}
@@ -149,15 +154,15 @@ export default function LoginScreen() {
             >
               {loading
                 ? <ActivityIndicator size="small" color="white" />
-                : <Text className="text-white text-[15px] font-bold">로그인</Text>
+                : <Text className="text-white text-base font-bold">로그인</Text>
               }
             </Pressable>
 
             {/* 구분선 */}
             <View className="flex-row items-center gap-3 mb-5">
-              <View className="flex-1 h-px bg-[#E4E4E7]" />
-              <Text className="text-[11px] text-[#A1A1AA] font-medium">또는</Text>
-              <View className="flex-1 h-px bg-[#E4E4E7]" />
+              <View className="flex-1 h-px bg-[#F4F4F5]" />
+              <Text className="text-[11px] text-[#A1A1AA] font-medium">또는 소셜 로그인</Text>
+              <View className="flex-1 h-px bg-[#F4F4F5]" />
             </View>
 
             {/* 소셜 로그인 */}
@@ -165,20 +170,21 @@ export default function LoginScreen() {
               <Pressable
                 onPress={() => { /* TODO: 카카오 OAuth 후 router.replace(nextRoute) */ }}
                 className="w-full rounded-xl py-[13px] flex-row items-center justify-center gap-2 active:opacity-75"
-                style={{ backgroundColor: '#FEE500' }}
+                style={{ backgroundColor: '#FEE500', borderRadius: 12 }}
               >
-                <Text style={{ fontSize: 16, lineHeight: 18 }}>💬</Text>
-                <Text className="text-[14px] font-bold" style={{ color: '#3A1D1D' }}>
+                <Text style={{ fontSize: 15, lineHeight: 18 }}>💬</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#3A1D1D' }}>
                   카카오로 계속하기
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={() => { /* TODO: Apple Sign-In 후 router.replace(nextRoute) */ }}
-                className="w-full bg-[#0A0A0B] rounded-xl py-[13px] flex-row items-center justify-center gap-2 active:opacity-75"
+                className="w-full rounded-xl py-[13px] flex-row items-center justify-center gap-2 active:opacity-75"
+                style={{ borderWidth: 1, borderColor: '#E4E4E7', borderRadius: 12 }}
               >
-                <Ionicons name="logo-apple" size={16} color="white" />
-                <Text className="text-[14px] font-bold text-white">Apple로 계속하기</Text>
+                <Ionicons name="logo-apple" size={16} color="#0A0A0B" />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#0A0A0B' }}>Apple로 계속하기</Text>
               </Pressable>
             </View>
 

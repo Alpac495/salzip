@@ -150,7 +150,7 @@ export default function Step5EnvironmentScreen() {
     const stepTimers = STEP_DELAYS.slice(1).map((delay, i) =>
       setTimeout(() => setStep(i + 1), delay)
     );
-    const nav = setTimeout(() => router.replace('/(onboarding)/login?from=diagnosis' as never), 4000);
+    const nav = setTimeout(() => router.replace('/(onboarding)/signup?from=diagnosis' as never), 4000);
 
     return () => { stepTimers.forEach(clearTimeout); clearTimeout(nav); };
   // eslint-disable-next-line react-hooks/exhaustive-deps

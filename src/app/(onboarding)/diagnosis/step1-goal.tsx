@@ -81,7 +81,7 @@ export default function Step1GoalScreen() {
         onPress={() => { if (canNext) router.push('/(onboarding)/diagnosis/step2-commute'); }}
         disabled={!canNext}
       >
-        <Text className={`text-[15px] font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>다음</Text>
+        <Text className={`text-base font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>다음</Text>
         <Ionicons name="arrow-forward" size={15} color={canNext ? 'white' : '#A1A1AA'} />
       </Pressable>
     </DiagnosisShell>

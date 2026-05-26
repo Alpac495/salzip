@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.anonymous.salzip",
+      "bundleIdentifier": "com.dbc.salzip",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoadsInWebContent": true,
@@ -34,7 +34,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.salzip"
+      "package": "com.dbc.salzip"
     },
     "web": {
       "output": "static",
@@ -42,6 +42,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {

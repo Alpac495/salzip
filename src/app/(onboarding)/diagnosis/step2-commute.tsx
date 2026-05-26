@@ -77,7 +77,7 @@ export default function Step2CommuteScreen() {
         className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-2 mt-2 active:opacity-75"
         onPress={() => router.push('/(onboarding)/diagnosis/step3-lifestyle')}
       >
-        <Text className="text-[15px] font-bold text-white">다음</Text>
+        <Text className="text-base font-bold text-white">다음</Text>
         <Ionicons name="arrow-forward" size={15} color="white" />
       </Pressable>
     </DiagnosisShell>
