@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { fetchJobCategories, type JobCategory } from '@/api/jobCategories';
+import { fetchLifestyleTags, type LifestyleTag } from '@/api/lifestyleTags';
 
-export function useJobCategories() {
-  const [data, setData] = useState<JobCategory[] | null>(null);
+export function useLifestyleTags() {
+  const [data, setData] = useState<LifestyleTag[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchJobCategories()
+    fetchLifestyleTags()
       .then((res) => {
         if (!cancelled) setData(res);
       })

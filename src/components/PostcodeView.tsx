@@ -24,19 +24,16 @@ html,body,#postcode{width:100%;height:100%}
 <div id="postcode"></div>
 <script>
 function send(data){
-  try{console.log('[postcode] oncomplete raw',data);}catch(e){}
   var msg=JSON.stringify({
     type:'address',
     roadAddress:data.roadAddress||'',
     jibunAddress:data.jibunAddress||data.autoJibunAddress||'',
     zonecode:data.zonecode||''
   });
-  try{console.log('[postcode] sending msg',msg);}catch(e){}
   if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(msg);}
   else if(window.parent){window.parent.postMessage(msg,'*');}
 }
 window.addEventListener('load',function(){
-  try{console.log('[postcode] embed start, daum=',typeof daum);}catch(e){}
   new daum.Postcode({
     oncomplete:send,
     width:'100%',
@@ -49,10 +46,8 @@ window.addEventListener('load',function(){
 
 export function PostcodeView({ onSelect }: Props) {
   const handleMessage = (data: string) => {
-    console.log('[PostcodeView] raw message', data);
     try {
       const msg = JSON.parse(data) as { type: string } & PostcodeResult;
-      console.log('[PostcodeView] parsed', msg);
       if (msg.type === 'address') {
         onSelect({
           roadAddress: msg.roadAddress,
@@ -60,9 +55,7 @@ export function PostcodeView({ onSelect }: Props) {
           zonecode: msg.zonecode,
         });
       }
-    } catch (e) {
-      console.log('[PostcodeView] parse error', e);
-    }
+    } catch {}
   };
 
   return <MapHtmlView html={HTML} onMessage={handleMessage} />;

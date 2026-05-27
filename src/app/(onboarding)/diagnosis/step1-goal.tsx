@@ -123,7 +123,6 @@ export default function Step1GoalScreen() {
           </View>
           <PostcodeView
             onSelect={(result) => {
-              console.log('[step1] postcode onSelect', result);
               const addr = result.roadAddress || result.jibunAddress;
               console.log('[step1] setting workAddress', addr);
               setWorkAddress(addr);

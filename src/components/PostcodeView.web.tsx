@@ -16,9 +16,7 @@ export function PostcodeView({ onSelect }: Props) {
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      const sameSource = !!iframeRef.current && e.source === iframeRef.current.contentWindow;
-      console.log('[PostcodeView.web] message', { sameSource, data: e.data });
-      if (!sameSource) return;
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return;
       try {
         const msg = JSON.parse(typeof e.data === 'string' ? e.data : JSON.stringify(e.data)) as {
           type: string;
@@ -31,9 +29,7 @@ export function PostcodeView({ onSelect }: Props) {
             zonecode: msg.zonecode,
           });
         }
-      } catch (err) {
-        console.log('[PostcodeView.web] parse error', err);
-      }
+      } catch {}
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
