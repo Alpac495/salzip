@@ -96,11 +96,13 @@ export default function LoginScreen() {
                     onChangeText={setEmail}
                     onFocus={() => setFocused('email')}
                     onBlur={() => setFocused(null)}
+                    onSubmitEditing={handleLogin}
                     placeholder="이메일을 입력하세요"
                     placeholderTextColor="#A1A1AA"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="next"
                     style={{ flex: 1, paddingVertical: 14, fontSize: 14, color: '#0A0A0B' }}
                   />
                 </View>
@@ -119,12 +121,14 @@ export default function LoginScreen() {
                     onChangeText={setPassword}
                     onFocus={() => setFocused('password')}
                     onBlur={() => setFocused(null)}
+                    onSubmitEditing={handleLogin}
                     placeholder="비밀번호를 입력하세요"
                     placeholderTextColor="#A1A1AA"
                     secureTextEntry={!showPw}
                     textContentType="password"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="done"
                     style={{ flex: 1, paddingVertical: 14, fontSize: 14, color: '#0A0A0B' }}
                   />
                   <Pressable onPress={() => setShowPw((v) => !v)} className="pl-2 active:opacity-60">

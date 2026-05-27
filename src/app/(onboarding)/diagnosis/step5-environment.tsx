@@ -4,119 +4,23 @@ import { View, Text, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useDiagnosisStore, computeDiagnosisResults } from '@/store/useDiagnosisStore';
-import type { Hood } from '@/store/useDiagnosisStore';
+import { postRecommend } from '@/api/recommend';
+import { useDiagnosisStore } from '@/store/useDiagnosisStore';
 
-/* ─── Kakao REST API ─── */
-const REST_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY ?? '';
-
-const RADIUS_MAP: Record<string, number> = {
-  '30분 이내': 5000,
-  '45분 이내': 8000,
-  '1시간 이내': 12000,
+const COMMUTE_MINUTES_MAP: Record<string, number> = {
+  '30분 이내': 30,
+  '45분 이내': 45,
+  '1시간 이내': 60,
 };
 
-async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-  if (!REST_KEY || !address.trim()) return null;
-  try {
-    const res = await fetch(
-      `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(address)}&size=1`,
-      { headers: { Authorization: `KakaoAK ${REST_KEY}` } }
-    );
-    const data = await res.json() as { documents: Array<{ x: string; y: string }> };
-    if (!data.documents.length) return null;
-    return { lat: parseFloat(data.documents[0].y), lng: parseFloat(data.documents[0].x) };
-  } catch {
-    return null;
-  }
-}
-
-// 지번 주소("서울 성동구 성수동1가 12-3")에서 동 이름 추출
-function extractDong(address: string): string | null {
-  const parts = address.split(/\s+/);
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (/[구군]$/.test(parts[i])) {
-      const next = parts[i + 1];
-      if (/동\d*가?$|읍$|면$/.test(next)) return next;
-    }
-  }
-  return null;
-}
-
-function extractGu(address: string): string | null {
-  const match = address.match(/(\S+[구군])\s/);
-  return match ? match[1] : null;
-}
-
-type KakaoDoc = { address_name: string; road_address_name: string; x: string; y: string };
-
-async function fetchKeyword(query: string, lat: number, lng: number, radius: number, page: number): Promise<KakaoDoc[]> {
-  try {
-    const res = await fetch(
-      `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}&x=${lng}&y=${lat}&radius=${radius}&size=15&page=${page}&sort=distance`,
-      { headers: { Authorization: `KakaoAK ${REST_KEY}` } }
-    );
-    const data = await res.json() as { documents: KakaoDoc[] };
-    return data.documents ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function searchNeighborhoods(lat: number, lng: number, radius: number): Promise<Hood[]> {
-  // 아파트 2페이지 + 빌라 1페이지 병렬 조회 (최대 45건)
-  const [apt1, apt2, villa] = await Promise.all([
-    fetchKeyword('아파트', lat, lng, radius, 1),
-    fetchKeyword('아파트', lat, lng, radius, 2),
-    fetchKeyword('빌라', lat, lng, radius, 1),
-  ]);
-
-  // 동별 건수·좌표 집계 (지번 주소 기준)
-  const dongMap = new Map<string, { gu: string; count: number; lats: number[]; lngs: number[] }>();
-  for (const doc of [...apt1, ...apt2, ...villa]) {
-    const address = doc.address_name;
-    const dong = extractDong(address);
-    if (!dong) continue;
-    const gu = extractGu(address) ?? '';
-    if (!dongMap.has(dong)) dongMap.set(dong, { gu, count: 0, lats: [], lngs: [] });
-    const entry = dongMap.get(dong)!;
-    entry.count++;
-    entry.lats.push(parseFloat(doc.y));
-    entry.lngs.push(parseFloat(doc.x));
-  }
-
-  const sorted = [...dongMap.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5);
-  if (sorted.length < 2) return [];
-
-  const maxCount = sorted[0][1].count;
-  return sorted.map(([name, data], i) => {
-    const centLat = data.lats.reduce((s, v) => s + v, 0) / data.lats.length;
-    const centLng = data.lngs.reduce((s, v) => s + v, 0) / data.lngs.length;
-    const score = Math.round(60 + (data.count / maxCount) * 35);
-    return {
-      rank: i + 1,
-      name,
-      meta: `${data.gu} · 주거 ${data.count}건 확인`,
-      score,
-      tier: (i === 0 ? 1 : i < 3 ? 2 : 3) as Hood['tier'],
-      lat: centLat,
-      lng: centLng,
-      commuteMinutes: 0,
-      scores: { work: Math.max(55, 95 - i * 10), life: score, safe: Math.max(60, 80 - i * 4) },
-    };
-  });
-}
-
-/* ─── 진행 항목 ─── */
 const LABELS = [
-  '직장 분석 · 워크넷 1,200건',
-  '라이프 매칭 · 서울 생활인구',
+  '직장 분석 · 통근 시간',
+  '라이프 매칭 · 생활 인프라',
   '안전 검증 · 침수·전세가율',
   '지원사업 자격 자동 판정',
 ];
 
-// step: 현재 active 인덱스. step 이하 = done, step 초과 = pending
-const STEP_DELAYS = [0, 800, 1700, 2600, 3500]; // 각 단계 진입 시각(ms)
+const STEP_DELAYS = [0, 800, 1700, 2600, 3500];
 
 function itemState(index: number, step: number): 'done' | 'active' | 'pending' {
   if (index < step) return 'done';
@@ -126,19 +30,44 @@ function itemState(index: number, step: number): 'done' | 'active' | 'pending' {
 
 export default function Step5EnvironmentScreen() {
   const scale = useRef(new Animated.Value(1)).current;
-  const { workAddress, commuteLimit, setResults } = useDiagnosisStore();
+  const {
+    companyName,
+    workAddress,
+    jobCategoryName,
+    commuteLimit,
+    lifestyleTags,
+    depositWan,
+    monthlyRentWan,
+    age,
+    annualIncomeWan,
+    householdType,
+    homeOwnerless,
+    setResults,
+  } = useDiagnosisStore();
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    const radius = RADIUS_MAP[commuteLimit] ?? 8000;
+    const body = {
+      workplace_name: companyName,
+      workplace_address: workAddress,
+      job_type: jobCategoryName,
+      max_commute_minutes: COMMUTE_MINUTES_MAP[commuteLimit] ?? 45,
+      lifestyle_tags: lifestyleTags.map((t) => t.name),
+      deposit_max_wan: depositWan,
+      monthly_rent_max_wan: monthlyRentWan,
+      age: parseInt(age, 10) || 0,
+      annual_income_wan: parseInt(annualIncomeWan, 10) || 0,
+      household_type: householdType,
+      home_ownerless: homeOwnerless,
+    };
 
-    setResults(computeDiagnosisResults(commuteLimit));
-
-    geocodeAddress(workAddress).then(async (coord) => {
-      if (!coord) return;
-      const hoods = await searchNeighborhoods(coord.lat, coord.lng, radius);
-      if (hoods.length >= 2) setResults(hoods);
-    });
+    postRecommend(body)
+      .then((res) => {
+        if (res.hoods?.length) setResults(res.hoods);
+      })
+      .catch((e) => {
+        console.log('[step5] recommend error', e);
+      });
 
     Animated.loop(
       Animated.sequence([
