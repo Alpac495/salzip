@@ -1,12 +1,12 @@
 // Route: /(onboarding)/login
-import { useState } from 'react';
-import { View, Text, Pressable, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { login } from '@/api/session';
+import { SESSION_EXPIRES_KEY, SESSION_KEY, useSessionStore } from '@/store/useSessionStore';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { login } from '@/api/session';
-import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY } from '@/store/useSessionStore';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
@@ -73,11 +73,12 @@ export default function LoginScreen() {
 
             {/* 타이틀 */}
             <Text className="text-[28px] font-extrabold tracking-[-0.56px] text-[#0A0A0B] mb-2">
-              <Text style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>다시</Text>
-              {' 만났어요'}
+              다시 만났어요!
             </Text>
             <Text className="text-[14px] text-[#71717A] leading-[1.6] mb-8">
-              계속하려면 로그인해주세요
+              {'계속하려면 '}
+              <Text style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>로그인</Text>
+              {'해주세요'}
             </Text>
 
             {/* 입력 폼 */}
@@ -188,7 +189,7 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            {/* 회원가입 링크 */}
+            {/* 회원가입 링크
             <View className="flex-row items-center justify-center gap-1">
               <Text className="text-[13px] text-[#71717A]">계정이 없으신가요?</Text>
               <Pressable
@@ -197,7 +198,7 @@ export default function LoginScreen() {
               >
                 <Text className="text-[13px] font-bold text-[#0A0A0B]">회원가입</Text>
               </Pressable>
-            </View>
+            </View> */}
 
           </View>
         </ScrollView>

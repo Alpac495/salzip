@@ -1,9 +1,9 @@
 // Route: /(onboarding)/diagnosis/step4-budget (Step4: 본인 정보)
-import { View, Text, Pressable, TextInput } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { DiagnosisShell } from '@/components/DiagnosisShell';
-import { useDiagnosisStore, HOUSEHOLD_TYPES } from '@/store/useDiagnosisStore';
+import { HOUSEHOLD_TYPES, useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 export default function Step4BudgetScreen() {
   const {
@@ -20,6 +20,16 @@ export default function Step4BudgetScreen() {
       step={4}
       onBack={() => router.back()}
       onClose={() => router.replace('/(onboarding)/start')}
+      footer={
+        <Pressable
+          className={`w-full rounded-xl py-4 flex-row items-center justify-center gap-2 ${canNext ? 'bg-[#0A0A0B] active:opacity-75' : 'bg-[#E4E4E7]'}`}
+          onPress={() => { if (canNext) router.push('/(onboarding)/diagnosis/step5-environment'); }}
+          disabled={!canNext}
+        >
+          <Text className={`text-base font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>진단 시작</Text>
+          <Ionicons name="checkmark-circle-outline" size={15} color={canNext ? 'white' : '#A1A1AA'} />
+        </Pressable>
+      }
     >
       <Text className="text-[22px] font-extrabold leading-[1.3] tracking-[-0.44px] text-[#0A0A0B] mb-2">
         <Text style={{ color: '#059669' }}>마지막</Text>
@@ -107,14 +117,6 @@ export default function Step4BudgetScreen() {
         </Pressable>
       </View>
 
-      <Pressable
-        className={`w-full rounded-xl py-4 flex-row items-center justify-center gap-2 mt-2 ${canNext ? 'bg-[#0A0A0B] active:opacity-75' : 'bg-[#E4E4E7]'}`}
-        onPress={() => { if (canNext) router.push('/(onboarding)/diagnosis/step5-environment'); }}
-        disabled={!canNext}
-      >
-        <Text className={`text-base font-bold ${canNext ? 'text-white' : 'text-[#A1A1AA]'}`}>진단 시작</Text>
-        <Ionicons name="checkmark-circle-outline" size={15} color={canNext ? 'white' : '#A1A1AA'} />
-      </Pressable>
     </DiagnosisShell>
   );
 }

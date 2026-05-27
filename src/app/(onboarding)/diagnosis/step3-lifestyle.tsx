@@ -1,10 +1,10 @@
 // Route: /(onboarding)/diagnosis/step3-lifestyle (Step3: 예산)
-import { useRef } from 'react';
-import { View, Text, Pressable, PanResponder } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { DiagnosisShell } from '@/components/DiagnosisShell';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useRef } from 'react';
+import { PanResponder, Pressable, Text, View } from 'react-native';
 
 const DEPOSIT_MAX = 10000;
 const DEPOSIT_STEP = 500;
@@ -116,6 +116,15 @@ export default function Step3LifestyleScreen() {
       step={3}
       onBack={() => router.back()}
       onClose={() => router.replace('/(onboarding)/start')}
+      footer={
+        <Pressable
+          className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-2 active:opacity-75"
+          onPress={() => router.push('/(onboarding)/diagnosis/step4-budget')}
+        >
+          <Text className="text-base font-bold text-white">다음</Text>
+          <Ionicons name="arrow-forward" size={15} color="white" />
+        </Pressable>
+      }
     >
       <Text className="text-[22px] font-extrabold leading-[1.3] tracking-[-0.44px] text-[#0A0A0B] mb-2">
         <Text style={{ color: '#059669' }}>예산</Text>
@@ -164,13 +173,6 @@ export default function Step3LifestyleScreen() {
         />
       </View>
 
-      <Pressable
-        className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-2 mt-2 active:opacity-75"
-        onPress={() => router.push('/(onboarding)/diagnosis/step4-budget')}
-      >
-        <Text className="text-base font-bold text-white">다음</Text>
-        <Ionicons name="arrow-forward" size={15} color="white" />
-      </Pressable>
     </DiagnosisShell>
   );
 }

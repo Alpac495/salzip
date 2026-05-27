@@ -1,4 +1,4 @@
-import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,9 +9,10 @@ interface Props {
   onBack?: () => void;
   onClose?: () => void;
   children: ReactNode;
+  footer?: ReactNode;
 }
 
-export function DiagnosisShell({ step, barTitle = '라이프 프로파일', onBack, onClose, children }: Props) {
+export function DiagnosisShell({ step, barTitle = '라이프 프로파일', onBack, onClose, children, footer }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       {/* 앱 바 */}
@@ -46,6 +47,12 @@ export function DiagnosisShell({ step, barTitle = '라이프 프로파일', onBa
           {children}
         </View>
       </KeyboardAvoidingView>
+
+      {footer && (
+        <View className="px-5 pb-5" style={{ transform: [{ translateY: -36 }] }}>
+          {footer}
+        </View>
+      )}
     </SafeAreaView>
   );
 }

@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TabBar } from '@/components/TabBar';
 
-type CardKey = 'monthly' | 'jeonse' | 'hug';
+type CardKey = 'monthly' | 'jeonse';
 
 type RuleRow = { label: string; value: string; pass: boolean };
 
@@ -26,13 +26,6 @@ const RULES: Record<CardKey, RuleRow[]> = {
     { label: '무주택 세대주', value: '무주택 ✓', pass: true },
     { label: '보증금 3억 이하', value: '3,000만', pass: true },
     { label: '주택 유형 적합', value: '빌라', pass: true },
-  ],
-  hug: [
-    { label: '전세가율 80% 이하', value: '65%', pass: true },
-    { label: '주택 유형 적합', value: '빌라 ✓', pass: true },
-    { label: '보증금 7억 이하', value: '3,000만', pass: true },
-    { label: '전용면적 기준 충족', value: '45㎡', pass: true },
-    { label: '임대인 동의 여부', value: '동의', pass: true },
   ],
 };
 
@@ -65,18 +58,9 @@ const CARDS: Record<CardKey, CardInfo> = {
     amountDetail: '대출 한도 · 연 1.5~2.7% 금리',
     source: '출처: 주택도시기금 버팀목 전세자금대출 안내 (2025)',
   },
-  hug: {
-    name: 'HUG 전세보증금 반환보증',
-    icon: 'shield-checkmark-outline',
-    reason: '전세가율 65% + 주택 유형 충족 → 가입 가능',
-    sheetPassTotal: '5개 충족',
-    amount: '보증금 100%',
-    amountDetail: '보증료 연 0.115% · 전세금 완전 보호',
-    source: '출처: 주택도시보증공사(HUG) 전세보증금반환보증 안내 (2025)',
-  },
 };
 
-const CARD_KEYS: CardKey[] = ['monthly', 'jeonse', 'hug'];
+const CARD_KEYS: CardKey[] = ['monthly', 'jeonse'];
 
 function BenefitText({ cardKey }: { cardKey: CardKey }) {
   const base = { fontSize: 11, color: '#71717A', lineHeight: 15.4, marginBottom: 4 } as const;
@@ -84,11 +68,8 @@ function BenefitText({ cardKey }: { cardKey: CardKey }) {
   if (cardKey === 'monthly') return (
     <Text style={base}>월 <Text style={hi}>20만원</Text> × 12개월 = 연 <Text style={hi}>240만원</Text></Text>
   );
-  if (cardKey === 'jeonse') return (
-    <Text style={base}>한도 <Text style={hi}>7,000만원</Text> · 금리 <Text style={hi}>1.5~2.7%</Text></Text>
-  );
   return (
-    <Text style={base}>보증료 연 <Text style={hi}>0.115%</Text> · 보증금 <Text style={hi}>100%</Text> 보호</Text>
+    <Text style={base}>한도 <Text style={hi}>7,000만원</Text> · 금리 <Text style={hi}>1.5~2.7%</Text></Text>
   );
 }
 
@@ -164,12 +145,12 @@ export default function HsubsidyScreen() {
             <View style={{ alignSelf: 'flex-start', backgroundColor: '#6EE7B7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, marginBottom: 8 }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#047857', letterSpacing: 0.4 }}>🎉 모든 자격 충족</Text>
             </View>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: 'white', letterSpacing: -0.5, lineHeight: 28, marginBottom: 4 }}>{'박지원님, 3가지\n지원을 동시에!'}</Text>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 18 }}>청년월세 + 버팀목 + HUG 보증 모두 가능합니다</Text>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: 'white', letterSpacing: -0.5, lineHeight: 28, marginBottom: 4 }}>{'박지원님, 2가지\n지원을 받을 수 있어요!'}</Text>
+            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 18 }}>청년월세 + 버팀목 전세대출 모두 가능합니다</Text>
 
             <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' }}>
               {[
-                { value: '3종', label: '자격 충족' },
+                { value: '2종', label: '자격 충족' },
                 { value: '연 240만', label: '예상 수혜' },
                 { value: '7,000만', label: '대출 한도' },
               ].map(stat => (
@@ -185,54 +166,57 @@ export default function HsubsidyScreen() {
         {/* Section header */}
         <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: '#0A0A0B' }}>자격 진단 결과</Text>
-          <Text style={{ fontSize: 11, color: '#71717A' }}>3 / 3 가능</Text>
+          <Text style={{ fontSize: 11, color: '#71717A' }}>2 / 2 가능</Text>
         </View>
 
         {/* Eligibility cards */}
-        <View style={{ paddingHorizontal: 16, gap: 8 }}>
+        <View style={{ paddingHorizontal: 16, gap: 8, paddingBottom: 16 }}>
           {CARD_KEYS.map(key => {
             const card = CARDS[key];
             return (
-              <Pressable
+              <View
                 key={key}
-                onPress={() => setActiveCard(key)}
                 style={{
-                  borderRadius: 12, padding: 14, flexDirection: 'row', gap: 12,
-                  backgroundColor: 'white',
+                  borderRadius: 12, backgroundColor: 'white',
                   borderWidth: 1, borderColor: '#E4E4E7',
                   borderLeftWidth: 4, borderLeftColor: '#10B981',
+                  overflow: 'hidden', flexDirection: 'row',
                 }}
               >
-                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Ionicons name={card.icon} size={20} color="#047857" />
-                </View>
+                {/* 자격 정보 영역 — 탭하면 상세 모달 */}
+                <Pressable
+                  onPress={() => setActiveCard(key)}
+                  style={{ flex: 1, padding: 14, gap: 12, flexDirection: 'row' }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Ionicons name={card.icon} size={20} color="#047857" />
+                  </View>
 
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0A0A0B', letterSpacing: -0.13, flex: 1, marginRight: 8 }} numberOfLines={1}>{card.name}</Text>
-                    <View style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#047857', letterSpacing: 0.36 }}>✓ 가능</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0A0A0B', letterSpacing: -0.13, flex: 1, marginRight: 8 }} numberOfLines={1}>{card.name}</Text>
+                      <View style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#047857', letterSpacing: 0.36 }}>✓ 가능</Text>
+                      </View>
+                    </View>
+                    <BenefitText cardKey={key} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#ECFDF5' }}>
+                      <Ionicons name="checkmark" size={12} color="#047857" />
+                      <Text style={{ fontSize: 10, color: '#047857', flex: 1, lineHeight: 14 }}>{card.reason}</Text>
                     </View>
                   </View>
-                  <BenefitText cardKey={key} />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#ECFDF5' }}>
-                    <Ionicons name="checkmark" size={12} color="#047857" />
-                    <Text style={{ fontSize: 10, color: '#047857', flex: 1, lineHeight: 14 }}>{card.reason}</Text>
-                  </View>
-                </View>
+                </Pressable>
 
-                <Ionicons name="chevron-forward" size={16} color="#059669" style={{ alignSelf: 'center', flexShrink: 0 }} />
-              </Pressable>
+                {/* 로드맵 이동 — 티켓 stub */}
+                <Pressable
+                  onPress={() => router.push({ pathname: '/(main)/hsubsidy/apply', params: { policy: key } } as never)}
+                  style={{ width: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981' }}
+                >
+                  <Ionicons name="arrow-forward" size={20} color="white" />
+                </Pressable>
+              </View>
             );
           })}
-        </View>
-
-        {/* CTA */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 }}>
-          <Pressable style={{ backgroundColor: '#0A0A0B', borderRadius: 12, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: 'white' }}>신청 로드맵 보기</Text>
-            <Ionicons name="arrow-forward" size={14} color="white" />
-          </Pressable>
         </View>
       </ScrollView>
 

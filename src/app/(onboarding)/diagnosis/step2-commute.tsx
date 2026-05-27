@@ -1,9 +1,9 @@
 // Route: /(onboarding)/diagnosis/step2-commute (Step2: 통근·라이프스타일)
-import { View, Text, Pressable } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { DiagnosisShell } from '@/components/DiagnosisShell';
-import { useDiagnosisStore, COMMUTE_OPTIONS, LIFESTYLE_CHIPS } from '@/store/useDiagnosisStore';
+import { COMMUTE_OPTIONS, LIFESTYLE_CHIPS, useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
 
 export default function Step2CommuteScreen() {
   const { commuteLimit, lifestyle, setCommuteLimit, toggleLifestyle } = useDiagnosisStore();
@@ -13,6 +13,15 @@ export default function Step2CommuteScreen() {
       step={2}
       onBack={() => router.back()}
       onClose={() => router.replace('/(onboarding)/start')}
+      footer={
+        <Pressable
+          className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-2 active:opacity-75"
+          onPress={() => router.push('/(onboarding)/diagnosis/step3-lifestyle')}
+        >
+          <Text className="text-base font-bold text-white">다음</Text>
+          <Ionicons name="arrow-forward" size={15} color="white" />
+        </Pressable>
+      }
     >
       <Text className="text-[22px] font-extrabold leading-[1.3] tracking-[-0.44px] text-[#0A0A0B] mb-2">
         {'통근 시간,\n어디까지 '}
@@ -73,13 +82,6 @@ export default function Step2CommuteScreen() {
         </View>
       </View>
 
-      <Pressable
-        className="w-full bg-[#0A0A0B] rounded-xl py-4 flex-row items-center justify-center gap-2 mt-2 active:opacity-75"
-        onPress={() => router.push('/(onboarding)/diagnosis/step3-lifestyle')}
-      >
-        <Text className="text-base font-bold text-white">다음</Text>
-        <Ionicons name="arrow-forward" size={15} color="white" />
-      </Pressable>
     </DiagnosisShell>
   );
 }
