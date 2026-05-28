@@ -7,6 +7,7 @@ import { useColorScheme, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createSession } from '@/api/session';
 import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY, USER_NAME_KEY } from '@/store/useSessionStore';
+import { useFavoriteStore } from '@/store/useFavoriteStore';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -23,6 +24,7 @@ export default function RootLayout() {
       if (token && expiresAt && new Date(expiresAt) > new Date()) {
         setSession(token, expiresAt);
         console.log('[Session] 기존 토큰 사용:', token, '만료:', expiresAt);
+        if (name) useFavoriteStore.getState().load(); // 로그인 유저 찜 목록 복원
         return;
       }
 

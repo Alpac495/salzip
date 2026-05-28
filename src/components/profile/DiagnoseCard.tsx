@@ -25,7 +25,7 @@ export function DiagnoseCard({ daysAgo, onPress }: Props) {
 
       <View className="ml-2 rounded-full bg-amber-100 px-2.5 py-1">
         <Text className="text-[11px] font-bold text-amber-800">
-          {daysAgo}일 전 진단
+          {daysAgo === 0 ? '오늘 진단' : `${daysAgo}일 전 진단`}
         </Text>
       </View>
 

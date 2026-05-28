@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,18 +13,58 @@ import { SavedListingItem } from '@/components/profile/SavedListingItem';
 import { SectionHeader, MenuItem } from '@/components/profile/MenuItem';
 import { TabBar } from '@/components/TabBar';
 import { logout } from '@/api/session';
+import { getFavorites, type FavoriteItem } from '@/api/favorites';
+import { getLatestRecommend } from '@/api/recommend';
 import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY } from '@/store/useSessionStore';
+import { useFavoriteStore } from '@/store/useFavoriteStore';
 
 import {
   MOCK_PROFILE,
   MOCK_STATS,
   MOCK_DIAGNOSE,
   MOCK_ACTIVE_APPLICATION,
-  MOCK_SAVED_LISTINGS,
 } from '@/constants/mypageMock';
 
 export function MyPageScreen() {
   const [savedTab, setSavedTab] = useState<SavedTabKey>('listing');
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [showAllSaved, setShowAllSaved] = useState(false);
+  const [daysAgo, setDaysAgo] = useState<number>(MOCK_DIAGNOSE.lastDiagnoseDaysAgo);
+  const [diagInfo, setDiagInfo] = useState<{ age?: number; job?: string }>({});
+  const favIds = useFavoriteStore((s) => s.ids);
+  const toggleFav = useFavoriteStore((s) => s.toggle);
+  const userName = useSessionStore((s) => s.userName);
+
+  const profile = {
+    ...MOCK_PROFILE,
+    name: userName ?? MOCK_PROFILE.name,
+    age: diagInfo.age ?? MOCK_PROFILE.age,
+    job: diagInfo.job ?? MOCK_PROFILE.job,
+  };
+  const stats = { ...MOCK_STATS, savedListings: favorites.length, savedNeighborhoods: 0 };
+
+  // 찜 목록은 진입 시 1회만 로드. 하트 해제해도 카드는 유지(색만 빠짐), 다음 진입 때 사라짐.
+  useEffect(() => {
+    getFavorites()
+      .then((res) => setFavorites(res.items))
+      .catch((e) => console.log('[mypage] favorites 로드 실패', e?.response?.status));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 마지막 진단 경과일 (latest.created_at 기준)
+  useEffect(() => {
+    getLatestRecommend()
+      .then((res) => {
+        if (res.created_at) {
+          const ms = Date.now() - new Date(res.created_at).getTime();
+          setDaysAgo(Math.max(0, Math.floor(ms / 86400000)));
+        }
+        if (res.request) {
+          setDiagInfo({ age: res.request.age, job: res.request.job_type });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -35,6 +75,7 @@ export function MyPageScreen() {
     await AsyncStorage.removeItem(SESSION_KEY);
     await AsyncStorage.removeItem(SESSION_EXPIRES_KEY);
     useSessionStore.getState().clearSession();
+    useFavoriteStore.getState().clear();
     router.replace('/(onboarding)/start' as never);
   };
 
@@ -57,12 +98,12 @@ export function MyPageScreen() {
         contentContainerClassName="pb-6"
       >
         {/* 1. 프로필 히어로 */}
-        <ProfileHero profile={MOCK_PROFILE} stats={MOCK_STATS} onPressEdit={noop} />
+        <ProfileHero profile={profile} stats={stats} onPressEdit={noop} />
 
         {/* 2. 재진단 카드 */}
         <DiagnoseCard
-          daysAgo={MOCK_DIAGNOSE.lastDiagnoseDaysAgo}
-          onPress={noop}
+          daysAgo={daysAgo}
+          onPress={() => router.replace('/(onboarding)/start' as never)}
         />
 
         {/* 3. 진행 중 신청 */}
@@ -78,19 +119,39 @@ export function MyPageScreen() {
           <SectionHeader title="저장한 항목" action="정렬 · 관리" onPressAction={noop} />
           <SavedTabs
             active={savedTab}
-            listingCount={MOCK_STATS.savedListings}
-            neighborhoodCount={MOCK_STATS.savedNeighborhoods}
+            listingCount={favorites.length}
+            neighborhoodCount={0}
             onChange={setSavedTab}
           />
         </View>
         <View className="mx-5 gap-2.5">
           {savedTab === 'listing' &&
-            MOCK_SAVED_LISTINGS.map((listing) => (
-              <SavedListingItem
-                key={listing.id}
-                listing={listing}
-                onPress={noop}
-              />
+            (favorites.length === 0 ? (
+              <View className="items-center rounded-xl bg-white py-10">
+                <Text className="text-sm text-neutral-400">저장한 매물이 없어요</Text>
+              </View>
+            ) : (
+              <>
+                {(showAllSaved ? favorites : favorites.slice(0, 3)).map((listing) => (
+                  <SavedListingItem
+                    key={listing.listing_id}
+                    listing={listing}
+                    isSaved={favIds.has(listing.listing_id)}
+                    onPress={() => router.push(`/listing/${listing.listing_id}` as never)}
+                    onToggleSave={() => toggleFav(listing.listing_id)}
+                  />
+                ))}
+                {favorites.length > 3 && (
+                  <Pressable
+                    onPress={() => setShowAllSaved((v) => !v)}
+                    className="items-center rounded-xl border border-neutral-200 bg-white py-3"
+                  >
+                    <Text className="text-sm font-semibold text-neutral-500">
+                      {showAllSaved ? '접기' : `더보기 (${favorites.length - 3})`}
+                    </Text>
+                  </Pressable>
+                )}
+              </>
             ))}
           {savedTab === 'neighborhood' && (
             <View className="items-center rounded-xl bg-white py-10">

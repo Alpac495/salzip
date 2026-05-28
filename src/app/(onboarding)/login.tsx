@@ -1,6 +1,7 @@
 // Route: /(onboarding)/login
 import { login } from '@/api/session';
 import { SESSION_EXPIRES_KEY, SESSION_KEY, USER_NAME_KEY, useSessionStore } from '@/store/useSessionStore';
+import { useFavoriteStore } from '@/store/useFavoriteStore';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -39,6 +40,7 @@ export default function LoginScreen() {
       if (user?.name) await AsyncStorage.setItem(USER_NAME_KEY, user.name);
       useSessionStore.getState().setSession(token, expires_at);
       useSessionStore.getState().setUserName(user?.name ?? null);
+      useFavoriteStore.getState().load();
       router.replace(nextRoute as never);
     } catch (e) {
       const err = e as { message?: string; response?: { status: number; data: unknown } };

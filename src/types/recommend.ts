@@ -59,4 +59,6 @@ export type Area = {
 export type RecommendResult = {
   areas: Area[];
   match_id: string | null;
+  created_at?: string | null;
+  request?: { age?: number; job_type?: string; [k: string]: unknown } | null;
 };

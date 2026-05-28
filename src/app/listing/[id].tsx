@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LISTING_DETAIL_IMAGES } from '@/constants/listingImages';
+import { listingDetailImages } from '@/constants/listingImages';
+import { useFavoriteStore } from '@/store/useFavoriteStore';
 import { Ionicons } from '@expo/vector-icons';
 
 /* ─── 타입 & 색상 시스템 ─── */
@@ -241,7 +242,8 @@ export default function ListingDetailScreen() {
   const r = RISK[detail.riskLevel];
   const cta = CTA[detail.riskLevel];
 
-  const [saved, setSaved] = useState(false);
+  const saved = useFavoriteStore((s) => (id ? s.ids.has(id) : false));
+  const toggleFav = useFavoriteStore((s) => s.toggle);
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -257,7 +259,7 @@ export default function ListingDetailScreen() {
           <Pressable style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="share-outline" size={20} color="#18181B" />
           </Pressable>
-          <Pressable onPress={() => setSaved(v => !v)}
+          <Pressable onPress={() => id && toggleFav(id)}
             style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name={saved ? 'heart' : 'heart-outline'} size={20} color={saved ? '#EF4444' : '#18181B'} />
           </Pressable>
@@ -268,13 +270,13 @@ export default function ListingDetailScreen() {
         {/* 사진 영역 */}
         <View style={{ height: 200, position: 'relative' }}>
           <Image
-            source={LISTING_DETAIL_IMAGES[id ?? DEFAULT_ID]?.[0]}
+            source={listingDetailImages(id ?? DEFAULT_ID)[0]}
             style={{ width: '100%', height: 200 }}
             resizeMode="cover"
           />
           {/* 페이지 도트 */}
           <View style={{ position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 4 }}>
-            {(LISTING_DETAIL_IMAGES[id ?? DEFAULT_ID] ?? []).map((_, i) => (
+            {listingDetailImages(id ?? DEFAULT_ID).map((_, i) => (
               <View key={i} style={{ height: 5, borderRadius: 3,
                 width: i === 0 ? 14 : 5,
                 backgroundColor: i === 0 ? 'white' : 'rgba(255,255,255,0.5)' }} />

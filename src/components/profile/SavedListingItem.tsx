@@ -1,21 +1,21 @@
 import { View, Text, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { SavedListing, RiskLevel } from '@/types/profile';
-import { LISTING_THUMBNAIL } from '@/constants/listingImages';
+import type { FavoriteItem } from '@/api/favorites';
+import { listingThumb } from '@/constants/listingImages';
 
 type Props = {
-  listing: SavedListing;
+  listing: FavoriteItem;
+  isSaved: boolean;
   onPress: () => void;
+  onToggleSave: () => void;
 };
 
-const RISK_TONE: Record<RiskLevel, { dot: string; bg: string; text: string; label: string }> = {
-  safe: { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', label: '안전' },
-  warn: { dot: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-800', label: '주의' },
-  danger: { dot: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-800', label: '위험' },
-};
-
-export function SavedListingItem({ listing, onPress }: Props) {
-  const tone = RISK_TONE[listing.riskLevel];
+export function SavedListingItem({ listing, isSaved, onPress, onToggleSave }: Props) {
+  const danger = listing.risk_level === 'danger';
+  const depositLabel =
+    listing.deposit >= 10000
+      ? `${(listing.deposit / 10000).toFixed(listing.deposit % 10000 === 0 ? 0 : 1)}억`
+      : `${listing.deposit.toLocaleString()}만`;
 
   return (
     <Pressable
@@ -23,37 +23,45 @@ export function SavedListingItem({ listing, onPress }: Props) {
       className="flex-row gap-3 rounded-xl border border-neutral-200 bg-white p-3.5"
     >
       <View className="h-20 w-20 rounded-xl overflow-hidden bg-neutral-100">
-        <Image source={LISTING_THUMBNAIL[listing.id]} style={{ width: 80, height: 80 }} resizeMode="cover" />
+        <Image source={listingThumb(listing.listing_id)} style={{ width: 80, height: 80 }} resizeMode="cover" />
       </View>
 
       <View className="flex-1">
         <Text className="text-xs text-neutral-400">
-          {listing.type} · {listing.unit} · {listing.neighborhood}
+          {(listing.estimated_kind ?? listing.kind)}
+          {listing.umd_name ? ` · ${listing.umd_name}` : ''}
         </Text>
         <Text className="mt-1 text-[15px] font-bold text-neutral-900">
-          보증 <Text className="font-extrabold">{listing.deposit.toLocaleString()}만</Text> / 월{' '}
-          <Text className="font-extrabold">{listing.monthly}만</Text>
+          보증 <Text className="font-extrabold">{depositLabel}</Text>
+          {listing.monthly_rent > 0 ? (
+            <>
+              {' '}/ 월 <Text className="font-extrabold">{listing.monthly_rent}만</Text>
+            </>
+          ) : (
+            <Text className="font-extrabold"> · 전세</Text>
+          )}
         </Text>
         <Text className="mt-1 text-xs text-neutral-400">
-          {listing.area}평 · 통근 {listing.commuteMin}분 · {listing.floor}층
+          {listing.area_m2 != null ? `${listing.area_m2}㎡` : '-'}
+          {listing.floor != null ? ` · ${listing.floor}층` : ''}
+          {listing.build_year != null ? ` · ${listing.build_year}년` : ''}
         </Text>
 
         <View className="mt-2 flex-row gap-1.5">
-          <View className={`flex-row items-center gap-1 rounded ${tone.bg} px-2 py-0.5`}>
-            <View className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
-            <Text className={`text-[11px] font-semibold ${tone.text}`}>
-              {tone.label} {listing.riskPercent}%
+          <View
+            className={`flex-row items-center gap-1 rounded px-2 py-0.5 ${danger ? 'bg-red-50' : 'bg-emerald-50'}`}
+          >
+            <View className={`h-1.5 w-1.5 rounded-full ${danger ? 'bg-red-500' : 'bg-emerald-500'}`} />
+            <Text className={`text-[11px] font-semibold ${danger ? 'text-red-800' : 'text-emerald-700'}`}>
+              {danger ? '침수 이력' : '안전'}
             </Text>
           </View>
-          {listing.hugAvailable && (
-            <View className="rounded bg-blue-50 px-2 py-0.5">
-              <Text className="text-[11px] font-semibold text-blue-800">보증금 보호</Text>
-            </View>
-          )}
         </View>
       </View>
 
-      <Ionicons name="heart" size={20} color="#EF4444" />
+      <Pressable onPress={onToggleSave} hitSlop={8} className="self-start p-1">
+        <Ionicons name={isSaved ? 'heart' : 'heart-outline'} size={20} color={isSaved ? '#EF4444' : '#A1A1AA'} />
+      </Pressable>
     </Pressable>
   );
 }

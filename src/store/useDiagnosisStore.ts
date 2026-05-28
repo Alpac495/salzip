@@ -29,6 +29,7 @@ interface DiagnosisState {
   // 진단 결과
   results: Area[];
   matchId: string | null;
+  resultView: 'map' | 'list';
 
   setCompanyName: (v: string) => void;
   setWorkAddress: (v: string) => void;
@@ -42,6 +43,7 @@ interface DiagnosisState {
   setHouseholdType: (v: HouseholdType) => void;
   setHomeOwnerless: (v: boolean) => void;
   setResults: (areas: Area[], matchId?: string | null) => void;
+  setResultView: (v: 'map' | 'list') => void;
 }
 
 export const useDiagnosisStore = create<DiagnosisState>((set) => ({
@@ -59,6 +61,7 @@ export const useDiagnosisStore = create<DiagnosisState>((set) => ({
   homeOwnerless: true,
   results: [],
   matchId: null,
+  resultView: 'map',
 
   setCompanyName: (v) => set({ companyName: v }),
   setWorkAddress: (v) => set({ workAddress: v }),
@@ -77,4 +80,5 @@ export const useDiagnosisStore = create<DiagnosisState>((set) => ({
   setHouseholdType: (v) => set({ householdType: v }),
   setHomeOwnerless: (v) => set({ homeOwnerless: v }),
   setResults: (areas, matchId = null) => set({ results: areas, matchId }),
+  setResultView: (v) => set({ resultView: v }),
 }));
