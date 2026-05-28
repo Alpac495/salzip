@@ -1,6 +1,6 @@
 // Route: /(onboarding)/login
 import { login } from '@/api/session';
-import { SESSION_EXPIRES_KEY, SESSION_KEY, useSessionStore } from '@/store/useSessionStore';
+import { SESSION_EXPIRES_KEY, SESSION_KEY, USER_NAME_KEY, useSessionStore } from '@/store/useSessionStore';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,14 +29,16 @@ export default function LoginScreen() {
     try {
       const res = await login(email.trim(), password);
       console.log('[login] response:', JSON.stringify(res));
-      const { token, expires_at } = res;
+      const { token, expires_at, user } = res;
       if (!token || !expires_at) {
         console.warn('[login] invalid_response - token:', token, 'expires_at:', expires_at);
         throw new Error('invalid_response');
       }
       await AsyncStorage.setItem(SESSION_KEY, token);
       await AsyncStorage.setItem(SESSION_EXPIRES_KEY, expires_at);
+      if (user?.name) await AsyncStorage.setItem(USER_NAME_KEY, user.name);
       useSessionStore.getState().setSession(token, expires_at);
+      useSessionStore.getState().setUserName(user?.name ?? null);
       router.replace(nextRoute as never);
     } catch (e) {
       const err = e as { message?: string; response?: { status: number; data: unknown } };
@@ -96,11 +98,13 @@ export default function LoginScreen() {
                     onChangeText={setEmail}
                     onFocus={() => setFocused('email')}
                     onBlur={() => setFocused(null)}
+                    onSubmitEditing={handleLogin}
                     placeholder="이메일을 입력하세요"
                     placeholderTextColor="#A1A1AA"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="next"
                     style={{ flex: 1, paddingVertical: 14, fontSize: 14, color: '#0A0A0B' }}
                   />
                 </View>
@@ -119,12 +123,14 @@ export default function LoginScreen() {
                     onChangeText={setPassword}
                     onFocus={() => setFocused('password')}
                     onBlur={() => setFocused(null)}
+                    onSubmitEditing={handleLogin}
                     placeholder="비밀번호를 입력하세요"
                     placeholderTextColor="#A1A1AA"
                     secureTextEntry={!showPw}
                     textContentType="password"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="done"
                     style={{ flex: 1, paddingVertical: 14, fontSize: 14, color: '#0A0A0B' }}
                   />
                   <Pressable onPress={() => setShowPw((v) => !v)} className="pl-2 active:opacity-60">

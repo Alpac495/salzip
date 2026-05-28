@@ -1,12 +1,14 @@
 // Route: /(onboarding)/diagnosis/step2-commute (Step2: 통근·라이프스타일)
 import { DiagnosisShell } from '@/components/DiagnosisShell';
-import { COMMUTE_OPTIONS, LIFESTYLE_CHIPS, useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { useLifestyleTags } from '@/hooks/useLifestyleTags';
+import { COMMUTE_OPTIONS, useDiagnosisStore } from '@/store/useDiagnosisStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 export default function Step2CommuteScreen() {
-  const { commuteLimit, lifestyle, setCommuteLimit, toggleLifestyle } = useDiagnosisStore();
+  const { commuteLimit, lifestyleTags, setCommuteLimit, toggleLifestyle } = useDiagnosisStore();
+  const { data: tags, isLoading, error } = useLifestyleTags();
 
   return (
     <DiagnosisShell
@@ -61,24 +63,33 @@ export default function Step2CommuteScreen() {
           <Text className="text-[12px] font-semibold text-[#3F3F46] tracking-[0.02em]">
             라이프스타일 <Text className="text-[#A1A1AA] font-normal">· 복수 선택</Text>
           </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {LIFESTYLE_CHIPS.map((chip) => {
-              const sel = lifestyle.includes(chip);
-              return (
-                <Pressable
-                  key={chip}
-                  onPress={() => toggleLifestyle(chip)}
-                  className={`px-3 py-[7px] rounded-full border ${
-                    sel ? 'bg-[#0A0A0B] border-[#0A0A0B]' : 'bg-white border-[#E4E4E7]'
-                  }`}
-                >
-                  <Text className={`text-[12px] font-semibold ${sel ? 'text-white' : 'text-[#3F3F46]'}`}>
-                    {chip}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          {isLoading ? (
+            <View className="py-3"><ActivityIndicator size="small" color="#A1A1AA" /></View>
+          ) : error ? (
+            <Text className="text-[12px] text-[#DC2626] py-2">라이프스타일 태그 로드 실패</Text>
+          ) : (
+            <View className="flex-row flex-wrap gap-2">
+              {(tags ?? []).map((tag) => {
+                const sel = lifestyleTags.some((t) => t.id === tag.id);
+                return (
+                  <Pressable
+                    key={tag.id}
+                    onPress={() => {
+                      console.log('[step2] lifestyle toggle', tag);
+                      toggleLifestyle(tag);
+                    }}
+                    className={`px-3 py-[7px] rounded-full border ${
+                      sel ? 'bg-[#0A0A0B] border-[#0A0A0B]' : 'bg-white border-[#E4E4E7]'
+                    }`}
+                  >
+                    <Text className={`text-[12px] font-semibold ${sel ? 'text-white' : 'text-[#3F3F46]'}`}>
+                      {tag.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
       </View>
 
