@@ -1,6 +1,7 @@
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SavedListing, RiskLevel } from '@/types/profile';
+import { LISTING_THUMBNAIL } from '@/constants/listingImages';
 
 type Props = {
   listing: SavedListing;
@@ -21,8 +22,8 @@ export function SavedListingItem({ listing, onPress }: Props) {
       onPress={onPress}
       className="flex-row gap-3 rounded-xl border border-neutral-200 bg-white p-3.5"
     >
-      <View className="h-20 w-20 items-center justify-center rounded-xl bg-neutral-100">
-        <Ionicons name="home-outline" size={28} color="#8A8A92" />
+      <View className="h-20 w-20 rounded-xl overflow-hidden bg-neutral-100">
+        <Image source={LISTING_THUMBNAIL[listing.id]} style={{ width: 80, height: 80 }} resizeMode="cover" />
       </View>
 
       <View className="flex-1">

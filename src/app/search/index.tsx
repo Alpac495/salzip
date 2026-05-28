@@ -1,10 +1,11 @@
 // Route: /(main)/search (S05: 매물 리스트)
 import { TabBar } from '@/components/TabBar';
+import { LISTING_THUMBNAIL } from '@/constants/listingImages';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* ─── 타입 ─── */
@@ -84,8 +85,8 @@ function ListingCard({ item, onToggleSave }: { item: Listing; onToggleSave: (id:
       <View style={{ flexDirection: 'row', gap: 12, padding: 12 }}>
         {/* 썸네일 */}
         <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#E4E4E7',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
-          <Ionicons name="home-outline" size={28} color="#A1A1AA" />
+          flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+          <Image source={LISTING_THUMBNAIL[item.id]} style={{ width: 96, height: 96 }} resizeMode="cover" />
           {item.isNew && (
             <View style={{ position: 'absolute', top: 6, left: 6,
               backgroundColor: '#10B981', borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 }}>
@@ -296,7 +297,7 @@ export default function SearchScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set(['1', '3']));
 
   const listings = LISTINGS.map(l => ({ ...l, isSaved: savedIds.has(l.id) }));
-  const isEmpty = false; // TODO: 실제 필터 결과로 교체
+  const isEmpty = false;
 
   const toggleFilter = (chip: string) => {
     if (chip === '전체필터') { setShowFilterSheet(true); return; }
@@ -335,11 +336,22 @@ export default function SearchScreen() {
         </Pressable>
       </View>
 
-      {/* 필터 칩바 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: 'row', alignItems: 'center' }}>
-        {/* 정렬 칩 (항상 다크) */}
+      {/* 필터 칩바 — paddingRight 추가로 마지막 칩 잘림 수정 */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        alwaysBounceHorizontal={false}
+        style={{ flexShrink: 0, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          gap: 8,
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingRight: 24,
+        }}>
+        {/* 정렬 칩 */}
         <Pressable style={{ flexShrink: 0, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
           backgroundColor: '#0A0A0B', borderWidth: 1, borderColor: '#0A0A0B',
           flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -390,7 +402,7 @@ export default function SearchScreen() {
           data={listings}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <ListingCard item={item} onToggleSave={toggleSave} />}
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, gap: 12 }}
           showsVerticalScrollIndicator={false}
         />
       )}
