@@ -1,29 +1,15 @@
 // Route: /(onboarding)/diagnosis/complete (S03: 맞춤 동네 결과)
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { MapHtmlView } from '@/components/MapHtmlView';
 import { AppHeader } from '@/components/AppHeader';
 import { TabBar } from '@/components/TabBar';
-import { postRecommend } from '@/api/recommend';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { getLatestRecommend } from '@/api/recommend';
 import type { Area, Listing } from '@/types/recommend';
-
-const DEFAULT_RECOMMEND_BODY = {
-  workplace_name: '카카오',
-  workplace_address: '경기도 성남시 분당구 판교역로 166',
-  job_type: '개발',
-  max_commute_minutes: 45,
-  lifestyle_tags: ['카페 라이프', '역세권'],
-  deposit_max_wan: 3000,
-  monthly_rent_max_wan: 60,
-  age: 27,
-  annual_income_wan: 4500,
-  household_type: '1인 가구',
-  home_ownerless: true,
-};
 
 const RANK_COLOR: Record<number, string> = {
   1: '#064E3B',
@@ -437,7 +423,7 @@ function KakaoMapView({
   onSelectArea: (a: Area) => void;
   onSelectListing: (l: Listing, a: Area) => void;
   onClear: () => void;
-  onShowList: () => void;
+  onShowList: (area: Area) => void;
 }) {
   const mapHtml = useMemo(() => buildMapHTML(areas), [areas]);
   const outbound = useMemo(
@@ -518,9 +504,9 @@ function KakaoMapView({
           area={selectedListing.area}
           onPress={() => router.push(`/listing/${selectedListing.listing.id}` as never)}
         />
-      ) : (
-        <AreaCard area={selectedArea ?? areas[0]} onPress={onShowList} />
-      )}
+      ) : (selectedArea ?? areas[0]) ? (
+        <AreaCard area={selectedArea ?? areas[0]} onPress={() => onShowList(selectedArea ?? areas[0])} />
+      ) : null}
     </>
   );
 }
@@ -664,60 +650,62 @@ function ListCard({ area, expanded, onToggle }: { area: Area; expanded: boolean;
   return (
     <View
       style={{
-        borderWidth: isTop ? 1.5 : 1,
-        borderColor: isTop ? '#0A0A0B' : '#E4E4E7',
+        borderWidth: expanded ? 1.5 : 1,
+        borderColor: expanded ? '#0A0A0B' : '#E4E4E7',
         borderRadius: 12,
         padding: 12,
         gap: 8,
         backgroundColor: 'white',
       }}
     >
-      <Pressable className="flex-row items-center gap-2.5" onPress={onToggle}>
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: rankCol(area.rank),
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ color: rankTxt(area.rank), fontWeight: '800', fontSize: 12, letterSpacing: -0.2 }}>
-            {area.score}
-          </Text>
-        </View>
-        <View className="flex-1">
-          <Text className="text-[13px] font-extrabold text-[#0A0A0B] tracking-[-0.13px]">{area.name}</Text>
-          <Text className="text-[10px] text-[#71717A]">
-            {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 {area.commuteMinutes}분
-          </Text>
-        </View>
-        {isTop && (
-          <View className="px-1.5 py-0.5 bg-[#FAFAFA] rounded">
-            <Text className="text-[9px] font-bold text-[#3F3F46]">TOP</Text>
+      <Pressable className="gap-2 active:opacity-70" onPress={onToggle}>
+        <View className="flex-row items-center gap-2.5">
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: rankCol(area.rank),
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: rankTxt(area.rank), fontWeight: '800', fontSize: 12, letterSpacing: -0.2 }}>
+              {area.score}
+            </Text>
           </View>
-        )}
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#A1A1AA" />
-      </Pressable>
-
-      <View className="flex-row gap-1.5">
-        {(
-          [
-            ['직장', area.scores.work],
-            ['라이프', area.scores.life],
-            ['안전', area.scores.safe],
-          ] as [string, number][]
-        ).map(([label, val]) => (
-          <View key={label} className="flex-1 gap-[3px]">
-            <Text className="text-[9px] text-[#71717A] font-semibold">{label}</Text>
-            <View className="h-[3px] bg-[#E4E4E7] rounded-full overflow-hidden">
-              <View className="h-full bg-[#0A0A0B] rounded-full" style={{ width: `${val}%` }} />
+          <View className="flex-1">
+            <Text className="text-[13px] font-extrabold text-[#0A0A0B] tracking-[-0.13px]">{area.name}</Text>
+            <Text className="text-[10px] text-[#71717A]">
+              {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 {area.commuteMinutes}분
+            </Text>
+          </View>
+          {isTop && (
+            <View className="px-1.5 py-0.5 bg-[#FAFAFA] rounded">
+              <Text className="text-[9px] font-bold text-[#3F3F46]">TOP</Text>
             </View>
-            <Text className="text-[11px] font-extrabold text-[#0A0A0B] tracking-[-0.2px]">{val}</Text>
-          </View>
-        ))}
-      </View>
+          )}
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#A1A1AA" />
+        </View>
+
+        <View className="flex-row gap-1.5">
+          {(
+            [
+              ['직장', area.scores.work],
+              ['라이프', area.scores.life],
+              ['안전', area.scores.safe],
+            ] as [string, number][]
+          ).map(([label, val]) => (
+            <View key={label} className="flex-1 gap-[3px]">
+              <Text className="text-[9px] text-[#71717A] font-semibold">{label}</Text>
+              <View className="h-[3px] bg-[#E4E4E7] rounded-full overflow-hidden">
+                <View className="h-full bg-[#0A0A0B] rounded-full" style={{ width: `${val}%` }} />
+              </View>
+              <Text className="text-[11px] font-extrabold text-[#0A0A0B] tracking-[-0.2px]">{val}</Text>
+            </View>
+          ))}
+        </View>
+      </Pressable>
 
       {expanded && (
         <View className="border-t border-[#F4F4F5] mt-1 pt-1">
@@ -937,51 +925,39 @@ function ViewToggle({ view, onChange }: { view: 'map' | 'list'; onChange: (v: 'm
 
 /* ─── Main Screen ─── */
 export default function CompleteScreen() {
-  const { results, setResults } = useDiagnosisStore();
+  const { results, matchId, setResults } = useDiagnosisStore();
+  const [restoring, setRestoring] = useState(false);
+
+  // 새로고침/재진입 = store 휘발 → 세션 기반 최근 추천 복원
+  useEffect(() => {
+    if (results.length === 0) {
+      setRestoring(true);
+      getLatestRecommend()
+        .then((res) => {
+          if (res.areas?.length) setResults(res.areas, res.match_id);
+        })
+        .catch((e) => console.log('[complete] restore error', e?.response?.status))
+        .finally(() => setRestoring(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [view, setView] = useState<'map' | 'list'>('map');
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedListing, setSelectedListing] = useState<{ listing: Listing; area: Area } | null>(null);
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<Error | null>(null);
   const [filter, setFilter] = useState<FilterState>(FILTER_DEFAULT);
   const [showFilter, setShowFilter] = useState(false);
   const [expandedAreaId, setExpandedAreaId] = useState<string | null>(null);
   // 리스트 뷰 + 카운트용 (RN 측 필터). 지도 뷰는 HTML 내부에서 필터 (재로드 X).
   const areasForList = useMemo(() => applyFilter(results, filter), [results, filter]);
 
-  useEffect(() => {
-    if (results.length > 0) return;
-    setFetching(true);
-    postRecommend(DEFAULT_RECOMMEND_BODY)
-      .then((res) => {
-        if (res.areas?.length) setResults(res.areas, res.match_id);
-      })
-      .catch((e) => {
-        console.log('[complete] recommend error', e);
-        setFetchError(e as Error);
-      })
-      .finally(() => setFetching(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const isEmpty = results.length === 0 && !fetching;
+  const isEmpty = results.length === 0 && !restoring;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <AppHeader title="맞춤 동네 결과" onAction={() => setShowFilter(true)} />
 
-      {fetching ? (
-        <View className="flex-1 items-center justify-center gap-3">
-          <ActivityIndicator size="large" color="#059669" />
-          <Text className="text-[12px] text-[#71717A]">맞춤 동네 불러오는 중...</Text>
-        </View>
-      ) : fetchError && results.length === 0 ? (
-        <View className="flex-1 items-center justify-center gap-2 px-6">
-          <Ionicons name="alert-circle-outline" size={36} color="#DC2626" />
-          <Text className="text-[13px] font-bold text-[#DC2626] text-center">진단 결과 로드 실패</Text>
-          <Text className="text-[11px] text-[#71717A] text-center">{fetchError.message}</Text>
-        </View>
-      ) : isEmpty ? (
+      {isEmpty ? (
         <EmptyState />
       ) : (
         <View style={{ flex: 1 }}>

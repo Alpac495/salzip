@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signup } from '@/api/session';
-import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY } from '@/store/useSessionStore';
+import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY, USER_NAME_KEY } from '@/store/useSessionStore';
 
 type Field = 'name' | 'email' | 'password';
 
@@ -38,11 +38,13 @@ export default function SignupScreen() {
     if (!agreed) { setError('서비스 이용약관에 동의해주세요.'); return; }
     setLoading(true);
     try {
-      const { token, expires_at } = await signup(name.trim(), email.trim(), password);
+      const { token, expires_at, user } = await signup(name.trim(), email.trim(), password);
       if (!token || !expires_at) throw new Error('invalid_response');
       await AsyncStorage.setItem(SESSION_KEY, token);
       await AsyncStorage.setItem(SESSION_EXPIRES_KEY, expires_at);
+      if (user?.name) await AsyncStorage.setItem(USER_NAME_KEY, user.name);
       useSessionStore.getState().setSession(token, expires_at);
+      useSessionStore.getState().setUserName(user?.name ?? name.trim());
       router.replace(nextRoute as never);
     } catch {
       setError('회원가입에 실패했습니다. 이미 사용 중인 이메일일 수 있어요.');

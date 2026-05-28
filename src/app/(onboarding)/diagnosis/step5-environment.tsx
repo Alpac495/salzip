@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { postRecommend } from '@/api/recommend';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { useSessionStore } from '@/store/useSessionStore';
 
 const COMMUTE_MINUTES_MAP: Record<string, number> = {
   '30분 이내': 30,
@@ -61,13 +62,33 @@ export default function Step5EnvironmentScreen() {
       home_ownerless: homeOwnerless,
     };
 
+    // 로그인 상태면 회원가입 skip → 바로 결과. 비로그인 → signup.
+    const { userName, token, isExpired } = useSessionStore.getState();
+    const loggedIn = !!userName && !!token && !isExpired();
+    const nextRoute = loggedIn
+      ? '/(onboarding)/diagnosis/complete'
+      : '/(onboarding)/signup?from=diagnosis';
+
+    let navTimer: ReturnType<typeof setTimeout> | null = null;
+    const goNext = () => {
+      navTimer = setTimeout(() => router.replace(nextRoute as never), 600);
+    };
+
+    console.log('[step5] body 전송:', JSON.stringify(body));
     postRecommend(body)
       .then((res) => {
-        if (res.areas?.length) setResults(res.areas, res.match_id);
+        console.log('[step5] recommend OK areas:', res.areas?.length, 'match:', res.match_id);
+        if (res.areas?.length) {
+          setResults(res.areas, res.match_id);
+          console.log('[step5] setResults 호출됨');
+        } else {
+          console.log('[step5] areas 비어있음! res:', JSON.stringify(res).slice(0, 200));
+        }
       })
       .catch((e) => {
-        console.log('[step5] recommend error', e);
-      });
+        console.log('[step5] recommend ERROR status:', e?.response?.status, 'data:', JSON.stringify(e?.response?.data), 'msg:', e?.message);
+      })
+      .finally(goNext);
 
     Animated.loop(
       Animated.sequence([
@@ -79,9 +100,8 @@ export default function Step5EnvironmentScreen() {
     const stepTimers = STEP_DELAYS.slice(1).map((delay, i) =>
       setTimeout(() => setStep(i + 1), delay)
     );
-    const nav = setTimeout(() => router.replace('/(onboarding)/signup?from=diagnosis' as never), 4000);
 
-    return () => { stepTimers.forEach(clearTimeout); clearTimeout(nav); };
+    return () => { stepTimers.forEach(clearTimeout); if (navTimer) clearTimeout(navTimer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

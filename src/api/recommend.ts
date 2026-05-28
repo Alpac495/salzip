@@ -21,3 +21,10 @@ export async function postRecommend(body: RecommendRequest): Promise<RecommendRe
   console.log('[api] postRecommend response areas:', data.areas?.length, 'match_id:', data.match_id);
   return data;
 }
+
+// 세션 기반 최근 추천 복원 (새로고침/재진입 대비)
+export async function getLatestRecommend(): Promise<RecommendResult> {
+  const { data } = await client.get<RecommendResult>('/api/v1/recommend/latest');
+  console.log('[api] getLatestRecommend areas:', data.areas?.length, 'match_id:', data.match_id);
+  return data;
+}
