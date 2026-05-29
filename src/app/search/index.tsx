@@ -1,15 +1,18 @@
 // Route: /(main)/search (S05: 매물 리스트)
 import { TabBar } from '@/components/TabBar';
-import { LISTING_THUMBNAIL } from '@/constants/listingImages';
+import { listingThumb } from '@/constants/listingImages';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { useFavoriteStore } from '@/store/useFavoriteStore';
+import { getLatestRecommend } from '@/api/recommend';
+import type { Area, Listing as RecListing } from '@/types/recommend';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* ─── 타입 ─── */
-type BadgeVariant = 'safe' | 'mid' | 'danger' | 'hug' | 'budget';
+type BadgeVariant = 'safe' | 'mid' | 'danger' | 'hug' | 'budget' | 'year';
 
 type Listing = {
   id: string;
@@ -21,40 +24,38 @@ type Listing = {
   deposit: string;
   monthly: string;
   area: string;
-  commute: string;
   floor: string;
   photoCount: number;
   badges: { variant: BadgeVariant; label: string }[];
 };
 
-/* ─── 샘플 데이터 ─── */
-const LISTINGS: Listing[] = [
-  {
-    id: '1', kind: '빌라 · 302호', isNew: true, isSaved: true, isRecommended: true, matchPct: 96,
-    deposit: '2,800만', monthly: '58만', area: '15평', commute: '32분', floor: '2층', photoCount: 12,
-    badges: [{ variant: 'safe', label: '안전 8%' }, { variant: 'hug', label: 'HUG 가능' }, { variant: 'budget', label: '예산 내' }],
-  },
-  {
-    id: '2', kind: '오피스텔 · 905호', isNew: false, isSaved: false, isRecommended: false,
-    deposit: '3,000만', monthly: '60만', area: '12평', commute: '28분', floor: '9층', photoCount: 8,
-    badges: [{ variant: 'safe', label: '안전 15%' }, { variant: 'hug', label: 'HUG 가능' }],
-  },
-  {
-    id: '3', kind: '다세대 · 201호', isNew: true, isSaved: true, isRecommended: false,
-    deposit: '3,000만', monthly: '55만', area: '14평', commute: '38분', floor: '1층', photoCount: 6,
-    badges: [{ variant: 'mid', label: '주의 42%' }, { variant: 'hug', label: 'HUG 가능' }],
-  },
-  {
-    id: '4', kind: '빌라 · 401호', isNew: false, isSaved: false, isRecommended: false,
-    deposit: '2,500만', monthly: '65만', area: '16평', commute: '35분', floor: '4층', photoCount: 15,
-    badges: [{ variant: 'danger', label: '위험 78%' }],
-  },
-  {
-    id: '5', kind: '오피스텔 · 503호', isNew: false, isSaved: false, isRecommended: false,
-    deposit: '2,000만', monthly: '70만', area: '10평', commute: '25분', floor: '5층', photoCount: 4,
-    badges: [{ variant: 'safe', label: '안전 22%' }, { variant: 'hug', label: 'HUG 가능' }],
-  },
-];
+/* ─── 매물 포맷 헬퍼 ─── */
+function fmtMan(v: number): string {
+  return v >= 10000 ? `${(v / 10000).toFixed(v % 10000 === 0 ? 0 : 1)}억` : `${v.toLocaleString()}만`;
+}
+
+// recommend 응답의 매물(RecListing) → 카드용 Listing. 사진/호수는 데이터 없어 목 유지.
+function toCard(l: RecListing, area: Area, rank: number): Listing {
+  const flood = l.flood_risk === true;
+  const badges: { variant: BadgeVariant; label: string }[] = [
+    flood ? { variant: 'danger', label: '침수 이력' } : { variant: 'safe', label: '안전' },
+  ];
+  if (l.build_year != null) badges.push({ variant: 'year', label: `${l.build_year}년` });
+  return {
+    id: l.id,
+    kind: l.estimated_kind ?? l.kind,
+    isNew: false,
+    isSaved: false,
+    isRecommended: rank === 0,
+    matchPct: rank === 0 ? area.score : undefined,
+    deposit: fmtMan(l.deposit),
+    monthly: l.monthly_rent > 0 ? `${l.monthly_rent}만` : '전세',
+    area: l.area_m2 != null ? `${l.area_m2}㎡` : '-',
+    floor: l.floor != null ? `${l.floor}층` : '-',
+    photoCount: 8, // 목: 실거래가 데이터에 사진 없음
+    badges,
+  };
+}
 
 const BADGE_STYLE: Record<BadgeVariant, { bg: string; text: string }> = {
   safe:   { bg: '#ECFDF5', text: '#047857' },
@@ -62,6 +63,7 @@ const BADGE_STYLE: Record<BadgeVariant, { bg: string; text: string }> = {
   danger: { bg: '#FEE2E2', text: '#B91C1C' },
   hug:    { bg: '#EFF6FF', text: '#1D4ED8' },
   budget: { bg: '#D1FAE5', text: '#047857' },
+  year:   { bg: '#EFF6FF', text: '#1D4ED8' },
 };
 
 /* ─── ListingCard ─── */
@@ -86,7 +88,7 @@ function ListingCard({ item, onToggleSave }: { item: Listing; onToggleSave: (id:
         {/* 썸네일 */}
         <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#E4E4E7',
           flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
-          <Image source={LISTING_THUMBNAIL[item.id]} style={{ width: 96, height: 96 }} resizeMode="cover" />
+          <Image source={listingThumb(item.id)} style={{ width: 96, height: 96 }} resizeMode="cover" />
           {item.isNew && (
             <View style={{ position: 'absolute', top: 6, left: 6,
               backgroundColor: '#10B981', borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 }}>
@@ -114,7 +116,7 @@ function ListingCard({ item, onToggleSave }: { item: Listing; onToggleSave: (id:
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#3F3F46' }}> / 월 {item.monthly}</Text>
           </Text>
           <Text style={{ fontSize: 12, color: '#71717A' }}>
-            {item.area} · 통근 {item.commute} · {item.floor}
+            {item.area} · {item.floor}
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
             {item.badges.map(({ variant, label }) => {
@@ -132,124 +134,6 @@ function ListingCard({ item, onToggleSave }: { item: Listing; onToggleSave: (id:
         </View>
       </View>
     </Pressable>
-  );
-}
-
-/* ─── FilterSheet ─── */
-const PROPERTY_TYPES = ['빌라', '오피스텔', '다세대', '원룸', '투룸'] as const;
-const DEPOSIT_OPTIONS = ['500만', '1,000만', '2,000만', '3,000만', '5,000만'] as const;
-const MONTHLY_OPTIONS = ['30만', '50만', '60만', '70만', '90만'] as const;
-
-function FilterSheet({ onClose }: { onClose: () => void }) {
-  const { depositWan, monthlyRentWan } = useDiagnosisStore();
-
-  const depositChip = `${depositWan.toLocaleString()}만`;
-  const monthlyChip = `${monthlyRentWan}만`;
-
-  const [types, setTypes] = useState<Set<string>>(new Set(['빌라', '오피스텔', '다세대']));
-  const [deposits, setDeposits] = useState<Set<string>>(
-    new Set(DEPOSIT_OPTIONS.includes(depositChip as typeof DEPOSIT_OPTIONS[number]) ? [depositChip] : [])
-  );
-  const [monthlies, setMonthlies] = useState<Set<string>>(
-    new Set(MONTHLY_OPTIONS.includes(monthlyChip as typeof MONTHLY_OPTIONS[number]) ? [monthlyChip] : [])
-  );
-  const [noBasement, setNoBasement] = useState(true);
-  const [hugOnly, setHugOnly] = useState(true);
-
-  const toggle = <T extends string>(set: Set<T>, val: T, setter: (s: Set<T>) => void) => {
-    const next = new Set(set);
-    next.has(val) ? next.delete(val) : next.add(val);
-    setter(next);
-  };
-
-  const reset = () => {
-    setTypes(new Set(['빌라', '오피스텔', '다세대']));
-    setDeposits(new Set(DEPOSIT_OPTIONS.includes(depositChip as typeof DEPOSIT_OPTIONS[number]) ? [depositChip] : []));
-    setMonthlies(new Set(MONTHLY_OPTIONS.includes(monthlyChip as typeof MONTHLY_OPTIONS[number]) ? [monthlyChip] : []));
-    setNoBasement(true);
-    setHugOnly(true);
-  };
-
-  const Switch = ({ on, onPress }: { on: boolean; onPress: () => void }) => (
-    <Pressable onPress={onPress}
-      style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: on ? '#10B981' : '#D4D4D8', justifyContent: 'center' }}>
-      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'white',
-        position: 'absolute', left: on ? 20 : 2,
-        shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 }} />
-    </Pressable>
-  );
-
-  const ChipRow = ({ options, selected, onToggle }: {
-    options: readonly string[];
-    selected: Set<string>;
-    onToggle: (v: string) => void;
-  }) => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-      {options.map((o) => {
-        const on = selected.has(o);
-        return (
-          <Pressable key={o} onPress={() => onToggle(o)}
-            style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
-              borderWidth: 1, borderColor: on ? '#10B981' : '#E4E4E7',
-              backgroundColor: on ? '#ECFDF5' : 'white' }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: on ? '#047857' : '#3F3F46' }}>{o}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-
-  return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(10,10,11,0.5)' }} onPress={onClose} />
-      <View style={{ backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        maxHeight: '75%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 12 }}>
-        {/* 핸들 */}
-        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D4D4D8', alignSelf: 'center', marginTop: 8, marginBottom: 4 }} />
-        {/* 헤더 */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-          paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}>
-          <Text style={{ fontSize: 17, fontWeight: '800', color: '#0A0A0B' }}>전체 필터</Text>
-          <Pressable onPress={reset}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#71717A' }}>초기화</Text>
-          </Pressable>
-        </View>
-        {/* 바디 */}
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 20 }} showsVerticalScrollIndicator={false}>
-          <View style={{ gap: 10 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0A0A0B' }}>매물 유형</Text>
-            <ChipRow options={PROPERTY_TYPES} selected={types} onToggle={(v) => toggle(types, v, setTypes)} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0A0A0B' }}>보증금</Text>
-            <ChipRow options={DEPOSIT_OPTIONS} selected={deposits} onToggle={(v) => toggle(deposits, v, setDeposits)} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0A0A0B' }}>월세</Text>
-            <ChipRow options={MONTHLY_OPTIONS} selected={monthlies} onToggle={(v) => toggle(monthlies, v, setMonthlies)} />
-          </View>
-          {([
-            ['반지하 제외', '침수 위험이 높은 매물 제외', noBasement, () => setNoBasement(v => !v)],
-            ['HUG 가입 가능만', '전세보증금 반환보증 가능 매물', hugOnly, () => setHugOnly(v => !v)],
-          ] as [string, string, boolean, () => void][]).map(([label, desc, on, fn]) => (
-            <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#0A0A0B' }}>{label}</Text>
-                <Text style={{ fontSize: 11, color: '#71717A', marginTop: 2 }}>{desc}</Text>
-              </View>
-              <Switch on={on} onPress={fn} />
-            </View>
-          ))}
-        </ScrollView>
-        {/* 적용 버튼 */}
-        <View style={{ padding: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F4F5' }}>
-          <Pressable onPress={onClose}
-            style={{ backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
-            <Text style={{ color: 'white', fontSize: 15, fontWeight: '700' }}>매물 24건 보기</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
   );
 }
 
@@ -286,33 +170,58 @@ function EmptyState() {
 }
 
 /* ─── Main Screen ─── */
-const FILTER_CHIPS = ['예산 내', 'HUG 가능', '반지하 제외', '전체필터'] as const;
+type SortKey = 'price' | 'area' | 'year';
+const SORT_CHIPS: { key: SortKey; label: string }[] = [
+  { key: 'price', label: '가격' },
+  { key: 'area', label: '면적' },
+  { key: 'year', label: '연식' },
+];
 
 export default function SearchScreen() {
-  const { results } = useDiagnosisStore();
-  const topHood = results[0];
+  const results = useDiagnosisStore((s) => s.results);
+  const setResults = useDiagnosisStore((s) => s.setResults);
+  const { areaId } = useLocalSearchParams<{ areaId?: string }>();
 
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['예산 내', 'HUG 가능']));
-  const [showFilterSheet, setShowFilterSheet] = useState(false);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set(['1', '3']));
+  // 새로고침/재진입 = store 휘발 → 세션 최근 추천 복원
+  useEffect(() => {
+    if (results.length === 0) {
+      getLatestRecommend()
+        .then((res) => {
+          if (res.areas?.length) setResults(res.areas, res.match_id);
+        })
+        .catch((e) => console.log('[search] restore error', e?.response?.status));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const listings = LISTINGS.map(l => ({ ...l, isSaved: savedIds.has(l.id) }));
-  const isEmpty = false;
+  const area = useMemo(
+    () => results.find((a) => a.area_id === areaId) ?? results[0],
+    [results, areaId]
+  );
 
-  const toggleFilter = (chip: string) => {
-    if (chip === '전체필터') { setShowFilterSheet(true); return; }
-    const next = new Set(activeFilters);
-    next.has(chip) ? next.delete(chip) : next.add(chip);
-    setActiveFilters(next);
-  };
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'price', dir: 'asc' });
+  const favIds = useFavoriteStore((s) => s.ids);
+  const toggleSave = useFavoriteStore((s) => s.toggle);
 
-  const toggleSave = (id: string) => {
-    setSavedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  const listings = useMemo(() => {
+    const arr = [...(area?.listings ?? [])];
+    const val = (l: RecListing) =>
+      sort.key === 'price'
+        ? l.deposit + l.monthly_rent * 12
+        : sort.key === 'area'
+          ? (l.area_m2 ?? 0)
+          : (l.build_year ?? 0);
+    arr.sort((a, b) => (sort.dir === 'asc' ? val(a) - val(b) : val(b) - val(a)));
+    return arr.map((l, i) => ({ ...toCard(l, area, i), isSaved: favIds.has(l.id) }));
+  }, [area, sort, favIds]);
+  const isEmpty = listings.length === 0;
+
+  const pickSort = (key: SortKey) =>
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'year' ? 'desc' : 'asc' }, // 연식은 신축순(desc) 기본
+    );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -325,48 +234,50 @@ export default function SearchScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 16, fontWeight: '700', letterSpacing: -0.16, color: '#0A0A0B' }}>
-            {topHood?.name ?? '동네'}
+            {area?.name ?? '동네'}
           </Text>
           <Text style={{ fontSize: 11, color: '#71717A', marginTop: 1 }}>
-            {topHood ? `매칭점수 ${topHood.score} · 내 조건 일치` : '진단 결과를 먼저 확인해주세요'}
+            {area ? `매칭점수 ${area.score} · 통근 약 ${area.commuteMinutes}분` : '진단 결과를 먼저 확인해주세요'}
           </Text>
         </View>
-        <Pressable style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 999 }}>
-          <Ionicons name="map-outline" size={20} color="#0A0A0B" />
-        </Pressable>
+        <View style={{ width: 40, height: 40 }} />
       </View>
 
-      {/* 필터 칩바 — paddingRight 추가로 마지막 칩 잘림 수정 */}
+      {/* 정렬 칩바 — 가격/면적/연식, 탭하면 오름↔내림 토글 */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         bounces={false}
         alwaysBounceHorizontal={false}
-        style={{ flexShrink: 0, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}
+        style={{ flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingVertical: 14,
+          paddingVertical: 10,
           gap: 8,
           flexDirection: 'row',
           alignItems: 'center',
           paddingRight: 24,
         }}>
-        {/* 정렬 칩 */}
-        <Pressable style={{ flexShrink: 0, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
-          backgroundColor: '#0A0A0B', borderWidth: 1, borderColor: '#0A0A0B',
-          flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: 'white' }}>최신순</Text>
-          <Ionicons name="chevron-down" size={12} color="white" />
-        </Pressable>
-        {FILTER_CHIPS.map((chip) => {
-          const isActive = activeFilters.has(chip);
+        {SORT_CHIPS.map(({ key, label }) => {
+          const isActive = sort.key === key;
           return (
-            <Pressable key={chip} onPress={() => toggleFilter(chip)}
+            <Pressable key={key} onPress={() => pickSort(key)}
               style={{ flexShrink: 0, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
-                borderWidth: 1,
-                borderColor: isActive ? '#10B981' : '#E4E4E7',
-                backgroundColor: isActive ? '#ECFDF5' : 'white' }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: isActive ? '#047857' : '#3F3F46' }}>{chip}</Text>
+                flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1,
+                borderColor: isActive ? '#0A0A0B' : '#E4E4E7',
+                backgroundColor: isActive ? '#0A0A0B' : 'white' }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: isActive ? 'white' : '#3F3F46' }}>{label}</Text>
+              {isActive && (
+                <Ionicons
+                  name={
+                    key === 'year'
+                      ? sort.dir === 'desc' ? 'arrow-down' : 'arrow-up' // 신축(desc)=↓
+                      : sort.dir === 'asc' ? 'arrow-down' : 'arrow-up'
+                  }
+                  size={12}
+                  color="white"
+                />
+              )}
             </Pressable>
           );
         })}
@@ -379,8 +290,10 @@ export default function SearchScreen() {
           <Text style={{ fontSize: 13, color: '#3F3F46' }}><Text style={{ fontWeight: '700', color: '#0A0A0B' }}>0</Text>건</Text>
         ) : (
           <Text style={{ fontSize: 13, color: '#3F3F46' }}>
-            <Text style={{ fontWeight: '700', color: '#0A0A0B' }}>24</Text>건 ·{' '}
-            <Text style={{ fontWeight: '700', color: '#059669' }}>안전 매물 12건</Text>
+            <Text style={{ fontWeight: '700', color: '#0A0A0B' }}>{listings.length}</Text>건 ·{' '}
+            <Text style={{ fontWeight: '700', color: '#059669' }}>
+              안전 매물 {listings.filter((l) => l.badges.some((b) => b.variant === 'safe')).length}건
+            </Text>
           </Text>
         )}
         <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: '#E4E4E7', borderRadius: 6, overflow: 'hidden' }}>
@@ -408,8 +321,6 @@ export default function SearchScreen() {
       )}
 
       <TabBar />
-
-      {showFilterSheet && <FilterSheet onClose={() => setShowFilterSheet(false)} />}
     </SafeAreaView>
   );
 }

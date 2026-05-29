@@ -1,7 +1,7 @@
 // Route: /(main)/hsubsidy (S07 지원사업 진단)
 import { useState } from 'react';
 import type { ComponentProps } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -247,9 +247,12 @@ export default function HsubsidyScreen() {
                   </View>
                 </Pressable>
 
-                {/* 우측 화살표 — 상세 모달 (페이지 이동 X) */}
-                <Pressable onPress={() => setActiveId(p.id)} style={{ width: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981' }}>
-                  <Ionicons name="arrow-forward" size={20} color="white" />
+                {/* 우측 화살표 — 신청 링크로 이동 */}
+                <Pressable
+                  onPress={() => p.apply_url && Linking.openURL(p.apply_url)}
+                  style={{ width: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981' }}
+                >
+                  <Ionicons name="open-outline" size={20} color="white" />
                 </Pressable>
               </View>
             ))}

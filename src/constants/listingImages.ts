@@ -26,23 +26,25 @@ export const ONEROOM_IMAGES: ImageSourcePropType[] = [
   require('../../assets/images/listings/oneroom/oneroom5.webp'),
 ];
 
-// 매물 id → 썸네일 (리스트·마이페이지용)
-export const LISTING_THUMBNAIL: Record<string, ImageSourcePropType> = {
-  '1':   VILLA_IMAGES[0],
-  '2':   OFFICETEL_IMAGES[0],
-  '3':   VILLA_IMAGES[1],
-  '4':   VILLA_IMAGES[2],
-  '5':   OFFICETEL_IMAGES[1],
-  'l-1': VILLA_IMAGES[3],
-  'l-2': OFFICETEL_IMAGES[2],
-  'l-3': VILLA_IMAGES[1],
-};
+// 실매물 id는 UUID라 정적 매핑 불가 → id 해시로 결정론적 선택.
+// 같은 id면 어디서 보든(지도 하단·검색 리스트·상세·저장) 항상 같은 사진.
+const ALL_IMAGES: ImageSourcePropType[] = [
+  ...VILLA_IMAGES,
+  ...OFFICETEL_IMAGES,
+  ...ONEROOM_IMAGES,
+];
 
-// 매물 id → 상세 이미지 배열 (상세 페이지용)
-export const LISTING_DETAIL_IMAGES: Record<string, ImageSourcePropType[]> = {
-  '1': [VILLA_IMAGES[0], VILLA_IMAGES[1], VILLA_IMAGES[2]],
-  '2': [OFFICETEL_IMAGES[0], OFFICETEL_IMAGES[1], OFFICETEL_IMAGES[2]],
-  '3': [VILLA_IMAGES[1], VILLA_IMAGES[2], VILLA_IMAGES[3]],
-  '4': [ONEROOM_IMAGES[0], ONEROOM_IMAGES[1], ONEROOM_IMAGES[2]],
-  '5': [OFFICETEL_IMAGES[1], OFFICETEL_IMAGES[2], OFFICETEL_IMAGES[3]],
-};
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+export function listingThumb(id: string): ImageSourcePropType {
+  return ALL_IMAGES[hashId(id) % ALL_IMAGES.length];
+}
+
+export function listingDetailImages(id: string): ImageSourcePropType[] {
+  const base = hashId(id) % ALL_IMAGES.length;
+  return [0, 1, 2].map((o) => ALL_IMAGES[(base + o) % ALL_IMAGES.length]);
+}

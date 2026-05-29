@@ -1,6 +1,6 @@
 // Route: /(onboarding)/diagnosis/complete (S03: 맞춤 동네 결과)
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { MapHtmlView } from '@/components/MapHtmlView';
 import { AppHeader } from '@/components/AppHeader';
 import { TabBar } from '@/components/TabBar';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { listingThumb } from '@/constants/listingImages';
 import { getLatestRecommend } from '@/api/recommend';
 import type { Area, Listing } from '@/types/recommend';
 
@@ -534,7 +535,7 @@ function AreaCard({ area, onPress }: { area: Area; onPress: () => void }) {
       <View className="flex-1">
         <Text className="text-[12px] font-extrabold text-[#0A0A0B] tracking-[-0.12px]">{area.name}</Text>
         <Text className="text-[10px] text-[#71717A]">
-          {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 {area.commuteMinutes}분
+          {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 약 {area.commuteMinutes}분
         </Text>
       </View>
       <Pressable
@@ -565,21 +566,8 @@ function ListingCard({
       className="flex-row items-center gap-2.5 mx-[14px] mb-[14px] bg-white rounded-2xl p-3 active:opacity-80"
       style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 4 }}
     >
-      <View
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 8,
-          backgroundColor: listing.flood_risk ? '#FEF2F2' : '#F4F4F5',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ionicons
-          name="home-outline"
-          size={16}
-          color={listing.flood_risk ? '#DC2626' : '#0A0A0B'}
-        />
+      <View style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F4F4F5' }}>
+        <Image source={listingThumb(listing.id)} style={{ width: 36, height: 36 }} resizeMode="cover" />
       </View>
       <View className="flex-1">
         <Text className="text-[12px] font-extrabold text-[#0A0A0B] tracking-[-0.12px]" numberOfLines={1}>
@@ -607,58 +595,24 @@ function ListingCard({
   );
 }
 
-/* ─── ListingRow (아코디언 내 매물) ─── */
-function ListingRow({ listing, areaName }: { listing: Listing; areaName: string }) {
-  const depositLabel = listing.deposit >= 10000
-    ? `${(listing.deposit / 10000).toFixed(listing.deposit % 10000 === 0 ? 0 : 1)}억`
-    : `${listing.deposit.toLocaleString()}만`;
-  return (
-    <Pressable
-      onPress={() => router.push(`/listing/${listing.id}` as never)}
-      className="flex-row items-center gap-2.5 py-2.5 active:opacity-70"
-    >
-      <View
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 7,
-          backgroundColor: listing.flood_risk ? '#FEF2F2' : '#F4F4F5',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ionicons name="home-outline" size={15} color={listing.flood_risk ? '#DC2626' : '#0A0A0B'} />
-      </View>
-      <View className="flex-1">
-        <Text className="text-[12px] font-bold text-[#0A0A0B]" numberOfLines={1}>
-          {listing.building_name ?? `${areaName} ${listing.estimated_kind ?? listing.kind}`}
-        </Text>
-        <Text className="text-[10px] text-[#71717A]" numberOfLines={1}>
-          {depositLabel}/{listing.monthly_rent}만 · {listing.area_m2 ?? '?'}㎡
-          {listing.floor !== null ? ` · ${listing.floor}층` : ''}
-          {listing.flood_risk ? ' · 침수 주의' : ''}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color="#A1A1AA" />
-    </Pressable>
-  );
-}
-
-/* ─── ListCard (리스트 탭 아코디언) ─── */
-function ListCard({ area, expanded, onToggle }: { area: Area; expanded: boolean; onToggle: () => void }) {
+/* ─── ListCard (리스트 탭 — 동네 1개, 탭하면 검색으로) ─── */
+function ListCard({ area }: { area: Area }) {
   const isTop = area.rank === 1;
   return (
     <View
       style={{
-        borderWidth: expanded ? 1.5 : 1,
-        borderColor: expanded ? '#0A0A0B' : '#E4E4E7',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
         borderRadius: 12,
         padding: 12,
         gap: 8,
         backgroundColor: 'white',
       }}
     >
-      <Pressable className="gap-2 active:opacity-70" onPress={onToggle}>
+      <Pressable
+        className="gap-2 active:opacity-70"
+        onPress={() => router.push(`/search?areaId=${area.area_id}` as never)}
+      >
         <View className="flex-row items-center gap-2.5">
           <View
             style={{
@@ -677,7 +631,7 @@ function ListCard({ area, expanded, onToggle }: { area: Area; expanded: boolean;
           <View className="flex-1">
             <Text className="text-[13px] font-extrabold text-[#0A0A0B] tracking-[-0.13px]">{area.name}</Text>
             <Text className="text-[10px] text-[#71717A]">
-              {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 {area.commuteMinutes}분
+              {area.meta.split(' · ')[0]} · 매물 {area.listings.length}건 · 통근 약 {area.commuteMinutes}분
             </Text>
           </View>
           {isTop && (
@@ -685,7 +639,7 @@ function ListCard({ area, expanded, onToggle }: { area: Area; expanded: boolean;
               <Text className="text-[9px] font-bold text-[#3F3F46]">TOP</Text>
             </View>
           )}
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#A1A1AA" />
+          <Ionicons name="chevron-forward" size={16} color="#A1A1AA" />
         </View>
 
         <View className="flex-row gap-1.5">
@@ -706,20 +660,6 @@ function ListCard({ area, expanded, onToggle }: { area: Area; expanded: boolean;
           ))}
         </View>
       </Pressable>
-
-      {expanded && (
-        <View className="border-t border-[#F4F4F5] mt-1 pt-1">
-          {area.listings.length === 0 ? (
-            <Text className="text-[11px] text-[#A1A1AA] py-3 text-center">예산에 맞는 매물이 없어요</Text>
-          ) : (
-            area.listings.map((l, i) => (
-              <View key={l.id} className={i > 0 ? 'border-t border-[#F4F4F5]' : ''}>
-                <ListingRow listing={l} areaName={area.name} />
-              </View>
-            ))
-          )}
-        </View>
-      )}
     </View>
   );
 }
@@ -942,12 +882,12 @@ export default function CompleteScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [view, setView] = useState<'map' | 'list'>('map');
+  const view = useDiagnosisStore((s) => s.resultView);
+  const setView = useDiagnosisStore((s) => s.setResultView);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedListing, setSelectedListing] = useState<{ listing: Listing; area: Area } | null>(null);
   const [filter, setFilter] = useState<FilterState>(FILTER_DEFAULT);
   const [showFilter, setShowFilter] = useState(false);
-  const [expandedAreaId, setExpandedAreaId] = useState<string | null>(null);
   // 리스트 뷰 + 카운트용 (RN 측 필터). 지도 뷰는 HTML 내부에서 필터 (재로드 X).
   const areasForList = useMemo(() => applyFilter(results, filter), [results, filter]);
 
@@ -979,8 +919,7 @@ export default function CompleteScreen() {
                 setSelectedListing(null);
               }}
               onShowList={(a) => {
-                setExpandedAreaId(a.area_id);
-                setView('list');
+                router.push(`/search?areaId=${a.area_id}` as never);
               }}
             />
           ) : (
@@ -990,14 +929,7 @@ export default function CompleteScreen() {
               showsVerticalScrollIndicator={false}
             >
               {areasForList.map((a) => (
-                <ListCard
-                  key={a.area_id}
-                  area={a}
-                  expanded={expandedAreaId === a.area_id}
-                  onToggle={() =>
-                    setExpandedAreaId((prev) => (prev === a.area_id ? null : a.area_id))
-                  }
-                />
+                <ListCard key={a.area_id} area={a} />
               ))}
             </ScrollView>
           )}
