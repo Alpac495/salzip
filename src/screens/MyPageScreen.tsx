@@ -12,10 +12,10 @@ import { SavedTabs, type SavedTabKey } from '@/components/profile/SavedTabs';
 import { SavedListingItem } from '@/components/profile/SavedListingItem';
 import { SectionHeader, MenuItem } from '@/components/profile/MenuItem';
 import { TabBar } from '@/components/TabBar';
-import { logout } from '@/api/session';
+import { logout, createSession } from '@/api/session';
 import { getFavorites, type FavoriteItem } from '@/api/favorites';
 import { getLatestRecommend } from '@/api/recommend';
-import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY } from '@/store/useSessionStore';
+import { useSessionStore, SESSION_KEY, SESSION_EXPIRES_KEY, USER_NAME_KEY } from '@/store/useSessionStore';
 import { useFavoriteStore } from '@/store/useFavoriteStore';
 
 import {
@@ -74,8 +74,20 @@ export function MyPageScreen() {
     }
     await AsyncStorage.removeItem(SESSION_KEY);
     await AsyncStorage.removeItem(SESSION_EXPIRES_KEY);
+    await AsyncStorage.removeItem(USER_NAME_KEY);
     useSessionStore.getState().clearSession();
     useFavoriteStore.getState().clear();
+
+    // 로그아웃 후 익명 세션 즉시 재발급 (없으면 이후 요청 401)
+    try {
+      const s = await createSession();
+      await AsyncStorage.setItem(SESSION_KEY, s.token);
+      await AsyncStorage.setItem(SESSION_EXPIRES_KEY, s.expires_at);
+      useSessionStore.getState().setSession(s.token, s.expires_at);
+    } catch {
+      // 실패해도 인터셉터가 다음 401에서 재발급
+    }
+
     router.replace('/(onboarding)/start' as never);
   };
 
