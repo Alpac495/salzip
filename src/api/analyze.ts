@@ -2,8 +2,7 @@
 // 이벤트: route / agent_start / token{agent,delta} / agent_done / agent_error / done
 import EventSource from 'react-native-sse';
 import { useSessionStore } from '@/store/useSessionStore';
-
-const BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL as BASE_URL } from '@/constants/env';
 
 export type AgentName = 'risk' | 'sise' | 'locale' | 'support' | 'synth';
 

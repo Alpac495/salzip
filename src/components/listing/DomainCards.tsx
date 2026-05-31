@@ -129,7 +129,9 @@ function SynthHero({
           </Markdown>
         ) : (
           <Text style={{ fontSize: 14, color: '#F4F4F5', lineHeight: 22, fontWeight: '500', minHeight: 60 }}>
-            {status === 'idle' ? '분석을 시작합니다...' : '종합 결론을 생성하고 있습니다...'}
+            {status === 'idle'
+              ? '아래 카드를 눌러 도메인별 상세 분석을 확인하세요.\n4개 도메인 분석이 완료되면 종합 결론이 표시됩니다.'
+              : 'AI가 4개 도메인 분석을 종합하고 있습니다.\n잠시만 기다려 주세요.'}
           </Text>
         )}
         {status === 'streaming' && (

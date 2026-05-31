@@ -5,9 +5,7 @@ import {
 } from '@/store/useSessionStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosRequestConfig } from 'axios';
-
-// const BASE_URL = 'https://api.albbano.org';
-const BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL as BASE_URL } from '@/constants/env';
 
 const client = axios.create({
   baseURL: BASE_URL,
