@@ -8,7 +8,7 @@ import { useFavoriteStore } from '@/store/useFavoriteStore';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
 import type { Area, Listing } from '@/types/recommend';
 import { Ionicons } from '@expo/vector-icons';
-import { startAnalyze, type AgentName } from '@/api/analyze';
+import { startAnalyze, type AgentName, type ScoresPayload } from '@/api/analyze';
 
 /* ─── 타입 & 색상 시스템 ─── */
 type RiskLevel = 'safe' | 'warn' | 'danger';
@@ -274,14 +274,98 @@ function buildRealOverrides(match: { listing: Listing; area: Area } | null): Par
   };
 }
 
+/* ─── 백엔드 risk 결정론 점수 → Detail 필드 변환 ─── */
+function gradeToLevel(grade: '안전' | '주의' | '위험' | undefined): RiskLevel | null {
+  if (grade === '안전') return 'safe';
+  if (grade === '주의') return 'warn';
+  if (grade === '위험') return 'danger';
+  return null;
+}
+
+function scoreToLevel(score: number): RiskLevel {
+  return score >= 80 ? 'safe' : score >= 50 ? 'warn' : 'danger';
+}
+
+function badgeText(score: number): string {
+  return score >= 80 ? '안전' : score >= 50 ? '주의' : '위험';
+}
+
+function iconFor(name: string): keyof typeof Ionicons.glyphMap {
+  if (name.includes('전세')) return 'cash-outline';
+  if (name.includes('사고')) return 'shield-outline';
+  if (name.includes('침수')) return 'water-outline';
+  if (name.includes('HUG')) return 'checkmark-circle-outline';
+  return 'information-circle-outline';
+}
+
+function fmtValue(name: string, basis: string | undefined, score: number): string {
+  if (basis && name.includes('전세가율')) {
+    const m = basis.match(/jeonse_ratio=([\d.]+)/);
+    if (m) return `${parseFloat(m[1]).toFixed(0)}%`;
+  }
+  if (basis && name.includes('사고')) {
+    const m = basis.match(/hug_accident_count=(\d+)/);
+    if (m) return `${parseInt(m[1], 10).toLocaleString()}건`;
+  }
+  if (basis && name.includes('침수')) {
+    const m = basis.match(/flood_risk=(\w+)/);
+    if (m) return m[1] === 'True' ? '있음' : '없음';
+  }
+  if (name.includes('HUG')) return score >= 80 ? '가입 가능' : '조건부';
+  return `${score}점`;
+}
+
+function buildRiskOverrides(scores: ScoresPayload | null): Partial<Detail> {
+  const risk = scores?.risk;
+  if (!risk || !risk.factors) return {};
+  const level = gradeToLevel(risk.grade) ?? scoreToLevel(risk.total_safe ?? 100);
+
+  const evidence: EvidenceItem[] = risk.factors.map((f) => ({
+    label: f.name,
+    value: fmtValue(f.name, f.basis, f.score),
+    badge: badgeText(f.score),
+    level: scoreToLevel(f.score),
+    icon: iconFor(f.name),
+  }));
+
+  const factors: FactorCard[] = risk.factors.map((f) => ({
+    name: f.name,
+    weight: `가중 ${Math.round(f.weight * 100)}%`,
+    data: f.basis ?? '',
+    source: '결정론 점수 산출 근거',
+    score: f.score,
+    level: scoreToLevel(f.score),
+  }));
+
+  const descParts: string[] = [];
+  for (const f of risk.factors) {
+    if (f.name.includes('전세가율')) descParts.push(`전세가율 ${fmtValue(f.name, f.basis, f.score)}`);
+    else if (f.name.includes('침수')) descParts.push(`침수 ${fmtValue(f.name, f.basis, f.score)}`);
+    else if (f.name.includes('HUG')) descParts.push(`HUG ${fmtValue(f.name, f.basis, f.score)}`);
+  }
+
+  return {
+    riskPct: risk.risk_pct,
+    riskLevel: level,
+    riskDesc: descParts.join(' · '),
+    evidence,
+    factors,
+  };
+}
+
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const results = useDiagnosisStore((s) => s.results);
   const realMatch = useMemo(() => findListing(results, id), [results, id]);
   const baseDetail = DETAILS[id ?? DEFAULT_ID] ?? DETAILS[DEFAULT_ID];
+
+  // 백엔드 SSE scores 이벤트 페이로드 (null이면 mock fallback)
+  const [scores, setScores] = useState<ScoresPayload | null>(null);
+  const riskOverrides = useMemo(() => buildRiskOverrides(scores), [scores]);
+
   const detail = useMemo(
-    () => ({ ...baseDetail, ...buildRealOverrides(realMatch) }),
-    [baseDetail, realMatch],
+    () => ({ ...baseDetail, ...buildRealOverrides(realMatch), ...riskOverrides }),
+    [baseDetail, realMatch, riskOverrides],
   );
   const r = RISK[detail.riskLevel];
   const cta = CTA[detail.riskLevel];
@@ -305,10 +389,15 @@ export default function ListingDetailScreen() {
     if (!id) return;
     if (stopRef.current) stopRef.current();
     setAgentTexts({ risk: '', sise: '', locale: '', support: '', synth: '' });
+    setScores(null);
     setAnalyzeError('');
     setAnalyzeStatus('연결 중...');
     stopRef.current = startAnalyze(id, {
       onRoute: (agents) => setAnalyzeStatus(`팀: ${agents.join('+')}`),
+      onScores: (s) => {
+        setScores(s);
+        setAnalyzeStatus('점수 수신');
+      },
       onAgentStart: (a) => setAnalyzeStatus(`${a} 시작`),
       onToken: (a, delta) => setAgentTexts((prev) => ({ ...prev, [a]: prev[a] + delta })),
       onAgentDone: (a) => setAnalyzeStatus(`${a} 완료`),

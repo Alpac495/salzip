@@ -7,8 +7,35 @@ const BASE_URL = 'http://localhost:8000';
 
 export type AgentName = 'risk' | 'sise' | 'locale' | 'support' | 'synth';
 
+export type RiskFactor = {
+  name: string;
+  weight: number;
+  score: number;
+  basis?: string;
+};
+
+export type RiskScore = {
+  risk_pct: number;
+  grade: '안전' | '주의' | '위험';
+  factors: RiskFactor[];
+  jeonse_score?: number;
+  accident_score?: number;
+  flood_score?: number;
+  hug_score?: number;
+  total_safe?: number;
+  market_trend?: Record<string, unknown>;
+};
+
+export type ScoresPayload = {
+  risk?: RiskScore | null;
+  sise?: Record<string, unknown> | null;
+  locale?: Record<string, unknown> | null;
+  support?: Record<string, unknown> | null;
+};
+
 export interface AnalyzeHandlers {
   onRoute?: (agents: string[]) => void;
+  onScores?: (scores: ScoresPayload) => void;
   onAgentStart?: (agent: AgentName) => void;
   onToken?: (agent: AgentName, delta: string) => void;
   onAgentDone?: (agent: AgentName) => void;
@@ -38,6 +65,10 @@ export function startAnalyze(listingId: string, handlers: AnalyzeHandlers) {
   es.addEventListener('route', (e: any) => {
     const d = parse(e.data);
     if (d?.agents) handlers.onRoute?.(d.agents);
+  });
+  es.addEventListener('scores', (e: any) => {
+    const d = parse(e.data);
+    if (d) handlers.onScores?.(d as ScoresPayload);
   });
   es.addEventListener('agent_start', (e: any) => {
     const d = parse(e.data);
