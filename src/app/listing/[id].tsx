@@ -12,6 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { startAnalyze, type AgentName, type ScoresPayload } from '@/api/analyze';
 import { DomainPanel, type Status } from '@/components/listing/DomainCards';
 import { DomainDetailSheet } from '@/components/listing/DomainDetailSheet';
+import { SaljipChatModal } from '@/components/listing/SaljipChatModal';
+import { ExtraActions } from '@/components/listing/ExtraActions';
 
 /* ─── 타입 & 색상 시스템 ─── */
 type RiskLevel = 'safe' | 'warn' | 'danger';
@@ -23,9 +25,9 @@ const RISK = {
 };
 
 const CTA = {
-  safe:   { bg: '#0A0A0B', text: '지원사업 자격 보기', icon: 'arrow-forward' as const },
-  warn:   { bg: '#B45309', text: '위험 주의 매물 — 지원사업 자격 보기', icon: 'arrow-forward' as const },
-  danger: { bg: '#B91C1C', text: '위험 매물 — 계약 전 반드시 확인', icon: 'warning-outline' as const },
+  safe:   { bg: '#0A0A0B', text: '살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
+  warn:   { bg: '#B45309', text: '주의 매물 — 살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
+  danger: { bg: '#B91C1C', text: '위험 매물 — 살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
 };
 
 /* ─── 데이터 ─── */
@@ -383,6 +385,7 @@ export default function ListingDetailScreen() {
     risk: '', sise: '', locale: '', support: '', synth: '',
   });
   const [selectedDomain, setSelectedDomain] = useState<Exclude<AgentName, 'synth'> | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
 
   // 새로고침 대응: lifestyleTags 휘발 시 latest에서 복원 (입지 미니 개인화용)
@@ -489,6 +492,13 @@ export default function ListingDetailScreen() {
           onDomainPress={(a) => setSelectedDomain(a)}
         />
 
+        {/* 부가 기능 — 출퇴근 노선·메일 리포트 (LLM 무관 유틸) */}
+        <ExtraActions
+          originArea={realMatch?.area.name ?? detail.title.split(' ')[0]}
+          destLabel={useDiagnosisStore.getState().companyName || '회사'}
+          listingTitle={detail.title}
+        />
+
         {/* 하단 여백 (CTA 높이만큼) */}
         <View style={{ height: 80 }} />
       </ScrollView>
@@ -496,10 +506,15 @@ export default function ListingDetailScreen() {
       {/* 고정 CTA */}
       <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16,
         borderTopWidth: 1, borderTopColor: '#F4F4F5', backgroundColor: 'white' }}>
-        <Pressable style={{ backgroundColor: cta.bg, borderRadius: 12, paddingVertical: 14,
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <Pressable
+          onPress={() => setChatOpen(true)}
+          style={({ pressed }) => ({
+            backgroundColor: cta.bg, borderRadius: 12, paddingVertical: 14,
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            opacity: pressed ? 0.85 : 1,
+          })}>
+          <Ionicons name={cta.icon} size={16} color="white" />
           <Text style={{ color: 'white', fontSize: 14, fontWeight: '700' }}>{cta.text}</Text>
-          <Ionicons name={cta.icon} size={14} color="white" />
         </Pressable>
       </View>
 
@@ -511,6 +526,14 @@ export default function ListingDetailScreen() {
         status={selectedDomain ? statuses[selectedDomain] : 'idle'}
         text={selectedDomain ? agentTexts[selectedDomain] : ''}
         onClose={() => setSelectedDomain(null)}
+      />
+
+      {/* 살집이 챗 모달 — fixed CTA 클릭 시 */}
+      <SaljipChatModal
+        visible={chatOpen}
+        onClose={() => setChatOpen(false)}
+        listingTitle={detail.title}
+        ownerLabel="임대인 김 O O"
       />
     </SafeAreaView>
   );
