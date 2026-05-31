@@ -48,7 +48,8 @@ export function startAnalyze(listingId: string, handlers: AnalyzeHandlers) {
   const token = useSessionStore.getState().token;
   const url = `${BASE_URL}/api/v1/listings/${listingId}/analyze`;
 
-  const es = new EventSource(url, {
+  type AnalyzeEvent = 'route' | 'scores' | 'agent_start' | 'token' | 'agent_done' | 'agent_error' | 'done';
+  const es = new EventSource<AnalyzeEvent>(url, {
     method: 'POST',
     headers: {
       Authorization: token ? `Bearer ${token}` : '',

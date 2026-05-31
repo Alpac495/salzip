@@ -6,9 +6,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { listingDetailImages } from '@/constants/listingImages';
 import { useFavoriteStore } from '@/store/useFavoriteStore';
 import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { getLatestRecommend } from '@/api/recommend';
 import type { Area, Listing } from '@/types/recommend';
 import { Ionicons } from '@expo/vector-icons';
 import { startAnalyze, type AgentName, type ScoresPayload } from '@/api/analyze';
+import { DomainPanel, type Status } from '@/components/listing/DomainCards';
+import { DomainDetailSheet } from '@/components/listing/DomainDetailSheet';
 
 /* ─── 타입 & 색상 시스템 ─── */
 type RiskLevel = 'safe' | 'warn' | 'danger';
@@ -367,51 +370,53 @@ export default function ListingDetailScreen() {
     () => ({ ...baseDetail, ...buildRealOverrides(realMatch), ...riskOverrides }),
     [baseDetail, realMatch, riskOverrides],
   );
-  const r = RISK[detail.riskLevel];
   const cta = CTA[detail.riskLevel];
 
   const saved = useFavoriteStore((s) => (id ? s.ids.has(id) : false));
   const toggleFav = useFavoriteStore((s) => s.toggle);
-  const [showModal, setShowModal] = useState(false);
 
-  // [debug] LLM 분석 SSE — 임시 raw 출력용
-  type AgentTexts = Record<AgentName, string>;
-  const [agentTexts, setAgentTexts] = useState<AgentTexts>({
+  // 5 도메인 SSE 상태 — 진입 시 자동 시작
+  const [statuses, setStatuses] = useState<Record<AgentName, Status>>({
+    risk: 'idle', sise: 'idle', locale: 'idle', support: 'idle', synth: 'idle',
+  });
+  const [agentTexts, setAgentTexts] = useState<Record<AgentName, string>>({
     risk: '', sise: '', locale: '', support: '', synth: '',
   });
-  const [analyzeStatus, setAnalyzeStatus] = useState<string>('대기');
-  const [analyzeError, setAnalyzeError] = useState<string>('');
-
-  // [debug] 토큰 절약 — 마운트 시 자동시작 X, gen 버튼으로 수동 트리거
+  const [selectedDomain, setSelectedDomain] = useState<Exclude<AgentName, 'synth'> | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
 
-  const triggerAnalyze = () => {
-    if (!id) return;
-    if (stopRef.current) stopRef.current();
-    setAgentTexts({ risk: '', sise: '', locale: '', support: '', synth: '' });
-    setScores(null);
-    setAnalyzeError('');
-    setAnalyzeStatus('연결 중...');
-    stopRef.current = startAnalyze(id, {
-      onRoute: (agents) => setAnalyzeStatus(`팀: ${agents.join('+')}`),
-      onScores: (s) => {
-        setScores(s);
-        setAnalyzeStatus('점수 수신');
-      },
-      onAgentStart: (a) => setAnalyzeStatus(`${a} 시작`),
-      onToken: (a, delta) => setAgentTexts((prev) => ({ ...prev, [a]: prev[a] + delta })),
-      onAgentDone: (a) => setAnalyzeStatus(`${a} 완료`),
-      onAgentError: (a, err) => setAnalyzeError(`${a}: ${err}`),
-      onDone: () => setAnalyzeStatus('완료'),
-      onError: (e) => setAnalyzeError(String(e)),
-    });
-  };
+  // 새로고침 대응: lifestyleTags 휘발 시 latest에서 복원 (입지 미니 개인화용)
+  useEffect(() => {
+    if (useDiagnosisStore.getState().lifestyleTags.length > 0) return;
+    getLatestRecommend()
+      .then((res) => {
+        const names = (res.request as { lifestyle_tags?: string[] } | undefined)?.lifestyle_tags;
+        if (names && names.length > 0) {
+          useDiagnosisStore.setState({
+            lifestyleTags: names.map((n) => ({ id: n, name: n })),
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
+    if (!id) return;
+    setScores(null);
+    setStatuses({ risk: 'idle', sise: 'idle', locale: 'idle', support: 'idle', synth: 'idle' });
+    setAgentTexts({ risk: '', sise: '', locale: '', support: '', synth: '' });
+    stopRef.current = startAnalyze(id, {
+      onScores: (s) => setScores(s),
+      onAgentStart: (a) => setStatuses((p) => ({ ...p, [a]: 'streaming' })),
+      onToken: (a, delta) => setAgentTexts((p) => ({ ...p, [a]: p[a] + delta })),
+      onAgentDone: (a) => setStatuses((p) => ({ ...p, [a]: 'done' })),
+      onAgentError: (a) => setStatuses((p) => ({ ...p, [a]: 'error' })),
+    });
     return () => {
       if (stopRef.current) stopRef.current();
+      stopRef.current = null;
     };
-  }, []);
+  }, [id]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -476,26 +481,13 @@ export default function ListingDetailScreen() {
           </View>
         </View>
 
-        {/* 위험도 카드 (탭 → 모달) */}
-        <Pressable onPress={() => setShowModal(true)}
-          style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 12,
-            backgroundColor: r.bg, borderWidth: 1, borderColor: r.border,
-            flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 }}>
-          <RiskCircle pct={detail.riskPct} level={detail.riskLevel} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: r.accent, letterSpacing: 0.5, marginBottom: 2 }}>
-              깡통전세 위험도
-            </Text>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: '#0A0A0B', marginBottom: 2 }}>
-              {r.label}
-            </Text>
-            <Text style={{ fontSize: 11, color: '#71717A' }}>{detail.riskDesc}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={r.accent} />
-        </Pressable>
-
-        {/* 산출 근거 4종 */}
-        <EvidenceGrid items={detail.evidence} />
+        {/* 5 도메인 패널 — 종합 히어로 + 4 도메인 미니 그리드 */}
+        <DomainPanel
+          scores={scores}
+          statuses={statuses}
+          agentTexts={agentTexts}
+          onDomainPress={(a) => setSelectedDomain(a)}
+        />
 
         {/* 하단 여백 (CTA 높이만큼) */}
         <View style={{ height: 80 }} />
@@ -511,27 +503,15 @@ export default function ListingDetailScreen() {
         </Pressable>
       </View>
 
-      {/* [debug] LLM 분석 SSE raw 출력 — 임시 */}
-      <ScrollView style={{ maxHeight: 280, backgroundColor: '#F4F4F5', padding: 12 }}>
-        <Pressable onPress={triggerAnalyze}
-          style={{ backgroundColor: '#0A0A0B', borderRadius: 6, paddingVertical: 8, alignItems: 'center', marginBottom: 8 }}>
-          <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>
-            [debug] GEN — AI 분석 시작
-          </Text>
-        </Pressable>
-        <Text style={{ fontSize: 11, color: '#71717A', marginBottom: 6 }}>
-          [debug] id={id} · status={analyzeStatus}{analyzeError ? ` · error=${analyzeError}` : ''}
-        </Text>
-        {(['risk', 'sise', 'locale', 'support', 'synth'] as AgentName[]).map((a) => (
-          <View key={a} style={{ marginTop: 8 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: '#0A0A0B' }}>=== {a} ===</Text>
-            <Text style={{ fontSize: 11, color: '#0A0A0B' }}>{agentTexts[a] || '(empty)'}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* S06-1 위험도 모달 */}
-      {showModal && <RiskModal detail={detail} onClose={() => setShowModal(false)} />}
+      {/* 도메인 디테일 시트 — 미니 타일 클릭 시 */}
+      <DomainDetailSheet
+        visible={selectedDomain != null}
+        domain={selectedDomain}
+        scores={scores}
+        status={selectedDomain ? statuses[selectedDomain] : 'idle'}
+        text={selectedDomain ? agentTexts[selectedDomain] : ''}
+        onClose={() => setSelectedDomain(null)}
+      />
     </SafeAreaView>
   );
 }
