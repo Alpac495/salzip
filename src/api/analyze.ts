@@ -1,0 +1,69 @@
+// 매물 분석 SSE 구독. 백엔드: POST /api/v1/listings/{id}/analyze (text/event-stream)
+// 이벤트: route / agent_start / token{agent,delta} / agent_done / agent_error / done
+import EventSource from 'react-native-sse';
+import { useSessionStore } from '@/store/useSessionStore';
+
+const BASE_URL = 'http://localhost:8000';
+
+export type AgentName = 'risk' | 'sise' | 'locale' | 'support' | 'synth';
+
+export interface AnalyzeHandlers {
+  onRoute?: (agents: string[]) => void;
+  onAgentStart?: (agent: AgentName) => void;
+  onToken?: (agent: AgentName, delta: string) => void;
+  onAgentDone?: (agent: AgentName) => void;
+  onAgentError?: (agent: AgentName, error: string) => void;
+  onDone?: () => void;
+  onError?: (err: unknown) => void;
+}
+
+export function startAnalyze(listingId: string, handlers: AnalyzeHandlers) {
+  const token = useSessionStore.getState().token;
+  const url = `${BASE_URL}/api/v1/listings/${listingId}/analyze`;
+
+  const es = new EventSource(url, {
+    method: 'POST',
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+
+  const parse = (raw: unknown) => {
+    if (typeof raw !== 'string') return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  };
+
+  es.addEventListener('route', (e: any) => {
+    const d = parse(e.data);
+    if (d?.agents) handlers.onRoute?.(d.agents);
+  });
+  es.addEventListener('agent_start', (e: any) => {
+    const d = parse(e.data);
+    if (d?.agent) handlers.onAgentStart?.(d.agent as AgentName);
+  });
+  es.addEventListener('token', (e: any) => {
+    const d = parse(e.data);
+    if (d?.agent && typeof d?.delta === 'string') {
+      handlers.onToken?.(d.agent as AgentName, d.delta);
+    }
+  });
+  es.addEventListener('agent_done', (e: any) => {
+    const d = parse(e.data);
+    if (d?.agent) handlers.onAgentDone?.(d.agent as AgentName);
+  });
+  es.addEventListener('agent_error', (e: any) => {
+    const d = parse(e.data);
+    if (d?.agent) handlers.onAgentError?.(d.agent as AgentName, d.error ?? '');
+  });
+  es.addEventListener('done', () => {
+    handlers.onDone?.();
+    es.close();
+  });
+  es.addEventListener('error', (e: any) => {
+    handlers.onError?.(e);
+  });
+
+  return () => es.close();
+}

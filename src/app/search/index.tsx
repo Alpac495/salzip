@@ -16,6 +16,7 @@ type BadgeVariant = 'safe' | 'mid' | 'danger' | 'hug' | 'budget' | 'year';
 
 type Listing = {
   id: string;
+  name: string | null;
   kind: string;
   isNew: boolean;
   isSaved: boolean;
@@ -43,6 +44,7 @@ function toCard(l: RecListing, area: Area, rank: number): Listing {
   if (l.build_year != null) badges.push({ variant: 'year', label: `${l.build_year}년` });
   return {
     id: l.id,
+    name: l.building_name,
     kind: l.estimated_kind ?? l.kind,
     isNew: false,
     isSaved: false,
@@ -104,7 +106,16 @@ function ListingCard({ item, onToggleSave }: { item: Listing; onToggleSave: (id:
         {/* 정보 */}
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: '#71717A', letterSpacing: 0.4 }}>{item.kind}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, flex: 1, marginRight: 8 }}>
+              {item.name && (
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#0A0A0B', letterSpacing: -0.2, flexShrink: 1 }} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              )}
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#71717A', letterSpacing: 0.4 }}>
+                {item.kind}
+              </Text>
+            </View>
             <Pressable onPress={() => onToggleSave(item.id)}
               style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4 }}>
               <Ionicons name={item.isSaved ? 'heart' : 'heart-outline'} size={18}

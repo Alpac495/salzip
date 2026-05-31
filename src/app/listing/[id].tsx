@@ -1,11 +1,14 @@
 // Route: /listing/[id] (S06: 매물 상세 + S06-1 위험도 모달)
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, Pressable, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { listingDetailImages } from '@/constants/listingImages';
 import { useFavoriteStore } from '@/store/useFavoriteStore';
+import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import type { Area, Listing } from '@/types/recommend';
 import { Ionicons } from '@expo/vector-icons';
+import { startAnalyze, type AgentName } from '@/api/analyze';
 
 /* ─── 타입 & 색상 시스템 ─── */
 type RiskLevel = 'safe' | 'warn' | 'danger';
@@ -236,15 +239,90 @@ function RiskModal({ detail, onClose }: { detail: Detail; onClose: () => void })
 }
 
 /* ─── Main Screen ─── */
+/* ─── store 매물 → Detail 일부 필드 빌드 (가격/면적/제목/태그만, risk는 mock 유지) ─── */
+function findListing(areas: Area[], lid: string | undefined): { listing: Listing; area: Area } | null {
+  if (!lid) return null;
+  for (const a of areas) {
+    const l = a.listings.find((x) => x.id === lid);
+    if (l) return { listing: l, area: a };
+  }
+  return null;
+}
+
+function buildRealOverrides(match: { listing: Listing; area: Area } | null): Partial<Detail> {
+  if (!match) return {};
+  const { listing: l, area } = match;
+  const kindStr = l.estimated_kind ?? l.kind ?? '';
+  const floorStr = l.floor != null ? ` · ${l.floor}층` : '';
+  const priceLabel =
+    l.monthly_rent > 0
+      ? `보증 ${l.deposit.toLocaleString()}만 / 월 ${l.monthly_rent}만`
+      : `전세 ${l.deposit.toLocaleString()}만`;
+  const areaStr = l.area_m2
+    ? `${l.area_m2.toFixed(1)}㎡ (${Math.round(l.area_m2 / 3.3058)}평)`
+    : '';
+  const tags: MetaTag[] = [];
+  if (areaStr) tags.push({ text: areaStr });
+  if (kindStr) tags.push({ text: kindStr });
+  if (l.build_year) tags.push({ text: `${l.build_year}년 건축` });
+  return {
+    title: `${area.name}${l.building_name ? ` ${l.building_name}` : ''}${floorStr}`,
+    priceLabel,
+    area: areaStr,
+    kind: kindStr,
+    metaTags: tags,
+  };
+}
+
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const detail = DETAILS[id ?? DEFAULT_ID] ?? DETAILS[DEFAULT_ID];
+  const results = useDiagnosisStore((s) => s.results);
+  const realMatch = useMemo(() => findListing(results, id), [results, id]);
+  const baseDetail = DETAILS[id ?? DEFAULT_ID] ?? DETAILS[DEFAULT_ID];
+  const detail = useMemo(
+    () => ({ ...baseDetail, ...buildRealOverrides(realMatch) }),
+    [baseDetail, realMatch],
+  );
   const r = RISK[detail.riskLevel];
   const cta = CTA[detail.riskLevel];
 
   const saved = useFavoriteStore((s) => (id ? s.ids.has(id) : false));
   const toggleFav = useFavoriteStore((s) => s.toggle);
   const [showModal, setShowModal] = useState(false);
+
+  // [debug] LLM 분석 SSE — 임시 raw 출력용
+  type AgentTexts = Record<AgentName, string>;
+  const [agentTexts, setAgentTexts] = useState<AgentTexts>({
+    risk: '', sise: '', locale: '', support: '', synth: '',
+  });
+  const [analyzeStatus, setAnalyzeStatus] = useState<string>('대기');
+  const [analyzeError, setAnalyzeError] = useState<string>('');
+
+  // [debug] 토큰 절약 — 마운트 시 자동시작 X, gen 버튼으로 수동 트리거
+  const stopRef = useRef<(() => void) | null>(null);
+
+  const triggerAnalyze = () => {
+    if (!id) return;
+    if (stopRef.current) stopRef.current();
+    setAgentTexts({ risk: '', sise: '', locale: '', support: '', synth: '' });
+    setAnalyzeError('');
+    setAnalyzeStatus('연결 중...');
+    stopRef.current = startAnalyze(id, {
+      onRoute: (agents) => setAnalyzeStatus(`팀: ${agents.join('+')}`),
+      onAgentStart: (a) => setAnalyzeStatus(`${a} 시작`),
+      onToken: (a, delta) => setAgentTexts((prev) => ({ ...prev, [a]: prev[a] + delta })),
+      onAgentDone: (a) => setAnalyzeStatus(`${a} 완료`),
+      onAgentError: (a, err) => setAnalyzeError(`${a}: ${err}`),
+      onDone: () => setAnalyzeStatus('완료'),
+      onError: (e) => setAnalyzeError(String(e)),
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (stopRef.current) stopRef.current();
+    };
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -343,6 +421,25 @@ export default function ListingDetailScreen() {
           <Ionicons name={cta.icon} size={14} color="white" />
         </Pressable>
       </View>
+
+      {/* [debug] LLM 분석 SSE raw 출력 — 임시 */}
+      <ScrollView style={{ maxHeight: 280, backgroundColor: '#F4F4F5', padding: 12 }}>
+        <Pressable onPress={triggerAnalyze}
+          style={{ backgroundColor: '#0A0A0B', borderRadius: 6, paddingVertical: 8, alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>
+            [debug] GEN — AI 분석 시작
+          </Text>
+        </Pressable>
+        <Text style={{ fontSize: 11, color: '#71717A', marginBottom: 6 }}>
+          [debug] id={id} · status={analyzeStatus}{analyzeError ? ` · error=${analyzeError}` : ''}
+        </Text>
+        {(['risk', 'sise', 'locale', 'support', 'synth'] as AgentName[]).map((a) => (
+          <View key={a} style={{ marginTop: 8 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#0A0A0B' }}>=== {a} ===</Text>
+            <Text style={{ fontSize: 11, color: '#0A0A0B' }}>{agentTexts[a] || '(empty)'}</Text>
+          </View>
+        ))}
+      </ScrollView>
 
       {/* S06-1 위험도 모달 */}
       {showModal && <RiskModal detail={detail} onClose={() => setShowModal(false)} />}
