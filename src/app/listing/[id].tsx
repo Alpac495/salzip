@@ -1,11 +1,19 @@
 // Route: /listing/[id] (S06: 매물 상세 + S06-1 위험도 모달)
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, Pressable, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { listingDetailImages } from '@/constants/listingImages';
 import { useFavoriteStore } from '@/store/useFavoriteStore';
+import { useDiagnosisStore } from '@/store/useDiagnosisStore';
+import { getLatestRecommend } from '@/api/recommend';
+import type { Area, Listing } from '@/types/recommend';
 import { Ionicons } from '@expo/vector-icons';
+import { startAnalyze, type AgentName, type ScoresPayload } from '@/api/analyze';
+import { DomainPanel, type Status } from '@/components/listing/DomainCards';
+import { DomainDetailSheet } from '@/components/listing/DomainDetailSheet';
+import { SaljipChatModal } from '@/components/listing/SaljipChatModal';
+import { ExtraActions } from '@/components/listing/ExtraActions';
 
 /* ─── 타입 & 색상 시스템 ─── */
 type RiskLevel = 'safe' | 'warn' | 'danger';
@@ -17,9 +25,9 @@ const RISK = {
 };
 
 const CTA = {
-  safe:   { bg: '#0A0A0B', text: '지원사업 자격 보기', icon: 'arrow-forward' as const },
-  warn:   { bg: '#B45309', text: '위험 주의 매물 — 지원사업 자격 보기', icon: 'arrow-forward' as const },
-  danger: { bg: '#B91C1C', text: '위험 매물 — 계약 전 반드시 확인', icon: 'warning-outline' as const },
+  safe:   { bg: '#0A0A0B', text: '살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
+  warn:   { bg: '#B45309', text: '주의 매물 — 살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
+  danger: { bg: '#B91C1C', text: '위험 매물 — 살집이에게 물어보세요', icon: 'chatbubbles-outline' as const },
 };
 
 /* ─── 데이터 ─── */
@@ -236,15 +244,182 @@ function RiskModal({ detail, onClose }: { detail: Detail; onClose: () => void })
 }
 
 /* ─── Main Screen ─── */
+/* ─── store 매물 → Detail 일부 필드 빌드 (가격/면적/제목/태그만, risk는 mock 유지) ─── */
+function findListing(areas: Area[], lid: string | undefined): { listing: Listing; area: Area } | null {
+  if (!lid) return null;
+  for (const a of areas) {
+    const l = a.listings.find((x) => x.id === lid);
+    if (l) return { listing: l, area: a };
+  }
+  return null;
+}
+
+function buildRealOverrides(match: { listing: Listing; area: Area } | null): Partial<Detail> {
+  if (!match) return {};
+  const { listing: l, area } = match;
+  const kindStr = l.estimated_kind ?? l.kind ?? '';
+  const floorStr = l.floor != null ? ` · ${l.floor}층` : '';
+  const priceLabel =
+    l.monthly_rent > 0
+      ? `보증 ${l.deposit.toLocaleString()}만 / 월 ${l.monthly_rent}만`
+      : `전세 ${l.deposit.toLocaleString()}만`;
+  const areaStr = l.area_m2
+    ? `${l.area_m2.toFixed(1)}㎡ (${Math.round(l.area_m2 / 3.3058)}평)`
+    : '';
+  const tags: MetaTag[] = [];
+  if (areaStr) tags.push({ text: areaStr });
+  if (kindStr) tags.push({ text: kindStr });
+  if (l.build_year) tags.push({ text: `${l.build_year}년 건축` });
+  return {
+    title: `${area.name}${l.building_name ? ` ${l.building_name}` : ''}${floorStr}`,
+    priceLabel,
+    area: areaStr,
+    kind: kindStr,
+    metaTags: tags,
+  };
+}
+
+/* ─── 백엔드 risk 결정론 점수 → Detail 필드 변환 ─── */
+function gradeToLevel(grade: '안전' | '주의' | '위험' | undefined): RiskLevel | null {
+  if (grade === '안전') return 'safe';
+  if (grade === '주의') return 'warn';
+  if (grade === '위험') return 'danger';
+  return null;
+}
+
+function scoreToLevel(score: number): RiskLevel {
+  return score >= 80 ? 'safe' : score >= 50 ? 'warn' : 'danger';
+}
+
+function badgeText(score: number): string {
+  return score >= 80 ? '안전' : score >= 50 ? '주의' : '위험';
+}
+
+function iconFor(name: string): keyof typeof Ionicons.glyphMap {
+  if (name.includes('전세')) return 'cash-outline';
+  if (name.includes('사고')) return 'shield-outline';
+  if (name.includes('침수')) return 'water-outline';
+  if (name.includes('HUG')) return 'checkmark-circle-outline';
+  return 'information-circle-outline';
+}
+
+function fmtValue(name: string, basis: string | undefined, score: number): string {
+  if (basis && name.includes('전세가율')) {
+    const m = basis.match(/jeonse_ratio=([\d.]+)/);
+    if (m) return `${parseFloat(m[1]).toFixed(0)}%`;
+  }
+  if (basis && name.includes('사고')) {
+    const m = basis.match(/hug_accident_count=(\d+)/);
+    if (m) return `${parseInt(m[1], 10).toLocaleString()}건`;
+  }
+  if (basis && name.includes('침수')) {
+    const m = basis.match(/flood_risk=(\w+)/);
+    if (m) return m[1] === 'True' ? '있음' : '없음';
+  }
+  if (name.includes('HUG')) return score >= 80 ? '가입 가능' : '조건부';
+  return `${score}점`;
+}
+
+function buildRiskOverrides(scores: ScoresPayload | null): Partial<Detail> {
+  const risk = scores?.risk;
+  if (!risk || !risk.factors) return {};
+  const level = gradeToLevel(risk.grade) ?? scoreToLevel(risk.total_safe ?? 100);
+
+  const evidence: EvidenceItem[] = risk.factors.map((f) => ({
+    label: f.name,
+    value: fmtValue(f.name, f.basis, f.score),
+    badge: badgeText(f.score),
+    level: scoreToLevel(f.score),
+    icon: iconFor(f.name),
+  }));
+
+  const factors: FactorCard[] = risk.factors.map((f) => ({
+    name: f.name,
+    weight: `가중 ${Math.round(f.weight * 100)}%`,
+    data: f.basis ?? '',
+    source: '결정론 점수 산출 근거',
+    score: f.score,
+    level: scoreToLevel(f.score),
+  }));
+
+  const descParts: string[] = [];
+  for (const f of risk.factors) {
+    if (f.name.includes('전세가율')) descParts.push(`전세가율 ${fmtValue(f.name, f.basis, f.score)}`);
+    else if (f.name.includes('침수')) descParts.push(`침수 ${fmtValue(f.name, f.basis, f.score)}`);
+    else if (f.name.includes('HUG')) descParts.push(`HUG ${fmtValue(f.name, f.basis, f.score)}`);
+  }
+
+  return {
+    riskPct: risk.risk_pct,
+    riskLevel: level,
+    riskDesc: descParts.join(' · '),
+    evidence,
+    factors,
+  };
+}
+
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const detail = DETAILS[id ?? DEFAULT_ID] ?? DETAILS[DEFAULT_ID];
-  const r = RISK[detail.riskLevel];
+  const results = useDiagnosisStore((s) => s.results);
+  const realMatch = useMemo(() => findListing(results, id), [results, id]);
+  const baseDetail = DETAILS[id ?? DEFAULT_ID] ?? DETAILS[DEFAULT_ID];
+
+  // 백엔드 SSE scores 이벤트 페이로드 (null이면 mock fallback)
+  const [scores, setScores] = useState<ScoresPayload | null>(null);
+  const riskOverrides = useMemo(() => buildRiskOverrides(scores), [scores]);
+
+  const detail = useMemo(
+    () => ({ ...baseDetail, ...buildRealOverrides(realMatch), ...riskOverrides }),
+    [baseDetail, realMatch, riskOverrides],
+  );
   const cta = CTA[detail.riskLevel];
 
   const saved = useFavoriteStore((s) => (id ? s.ids.has(id) : false));
   const toggleFav = useFavoriteStore((s) => s.toggle);
-  const [showModal, setShowModal] = useState(false);
+
+  // 5 도메인 SSE 상태 — 진입 시 자동 시작
+  const [statuses, setStatuses] = useState<Record<AgentName, Status>>({
+    risk: 'idle', sise: 'idle', locale: 'idle', support: 'idle', synth: 'idle',
+  });
+  const [agentTexts, setAgentTexts] = useState<Record<AgentName, string>>({
+    risk: '', sise: '', locale: '', support: '', synth: '',
+  });
+  const [selectedDomain, setSelectedDomain] = useState<Exclude<AgentName, 'synth'> | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const stopRef = useRef<(() => void) | null>(null);
+
+  // 새로고침 대응: lifestyleTags 휘발 시 latest에서 복원 (입지 미니 개인화용)
+  useEffect(() => {
+    if (useDiagnosisStore.getState().lifestyleTags.length > 0) return;
+    getLatestRecommend()
+      .then((res) => {
+        const names = (res.request as { lifestyle_tags?: string[] } | undefined)?.lifestyle_tags;
+        if (names && names.length > 0) {
+          useDiagnosisStore.setState({
+            lifestyleTags: names.map((n) => ({ id: n, name: n })),
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    setScores(null);
+    setStatuses({ risk: 'idle', sise: 'idle', locale: 'idle', support: 'idle', synth: 'idle' });
+    setAgentTexts({ risk: '', sise: '', locale: '', support: '', synth: '' });
+    stopRef.current = startAnalyze(id, {
+      onScores: (s) => setScores(s),
+      onAgentStart: (a) => setStatuses((p) => ({ ...p, [a]: 'streaming' })),
+      onToken: (a, delta) => setAgentTexts((p) => ({ ...p, [a]: p[a] + delta })),
+      onAgentDone: (a) => setStatuses((p) => ({ ...p, [a]: 'done' })),
+      onAgentError: (a) => setStatuses((p) => ({ ...p, [a]: 'error' })),
+    });
+    return () => {
+      if (stopRef.current) stopRef.current();
+      stopRef.current = null;
+    };
+  }, [id]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
@@ -309,26 +484,20 @@ export default function ListingDetailScreen() {
           </View>
         </View>
 
-        {/* 위험도 카드 (탭 → 모달) */}
-        <Pressable onPress={() => setShowModal(true)}
-          style={{ marginHorizontal: 16, marginTop: 14, borderRadius: 12,
-            backgroundColor: r.bg, borderWidth: 1, borderColor: r.border,
-            flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 }}>
-          <RiskCircle pct={detail.riskPct} level={detail.riskLevel} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: r.accent, letterSpacing: 0.5, marginBottom: 2 }}>
-              깡통전세 위험도
-            </Text>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: '#0A0A0B', marginBottom: 2 }}>
-              {r.label}
-            </Text>
-            <Text style={{ fontSize: 11, color: '#71717A' }}>{detail.riskDesc}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={r.accent} />
-        </Pressable>
+        {/* 5 도메인 패널 — 종합 히어로 + 4 도메인 미니 그리드 */}
+        <DomainPanel
+          scores={scores}
+          statuses={statuses}
+          agentTexts={agentTexts}
+          onDomainPress={(a) => setSelectedDomain(a)}
+        />
 
-        {/* 산출 근거 4종 */}
-        <EvidenceGrid items={detail.evidence} />
+        {/* 부가 기능 — 출퇴근 노선·메일 리포트 (LLM 무관 유틸) */}
+        <ExtraActions
+          originArea={realMatch?.area.name ?? detail.title.split(' ')[0]}
+          destLabel={useDiagnosisStore.getState().companyName || '회사'}
+          listingTitle={detail.title}
+        />
 
         {/* 하단 여백 (CTA 높이만큼) */}
         <View style={{ height: 80 }} />
@@ -337,15 +506,35 @@ export default function ListingDetailScreen() {
       {/* 고정 CTA */}
       <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16,
         borderTopWidth: 1, borderTopColor: '#F4F4F5', backgroundColor: 'white' }}>
-        <Pressable style={{ backgroundColor: cta.bg, borderRadius: 12, paddingVertical: 14,
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <Pressable
+          onPress={() => setChatOpen(true)}
+          style={({ pressed }) => ({
+            backgroundColor: cta.bg, borderRadius: 12, paddingVertical: 14,
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            opacity: pressed ? 0.85 : 1,
+          })}>
+          <Ionicons name={cta.icon} size={16} color="white" />
           <Text style={{ color: 'white', fontSize: 14, fontWeight: '700' }}>{cta.text}</Text>
-          <Ionicons name={cta.icon} size={14} color="white" />
         </Pressable>
       </View>
 
-      {/* S06-1 위험도 모달 */}
-      {showModal && <RiskModal detail={detail} onClose={() => setShowModal(false)} />}
+      {/* 도메인 디테일 시트 — 미니 타일 클릭 시 */}
+      <DomainDetailSheet
+        visible={selectedDomain != null}
+        domain={selectedDomain}
+        scores={scores}
+        status={selectedDomain ? statuses[selectedDomain] : 'idle'}
+        text={selectedDomain ? agentTexts[selectedDomain] : ''}
+        onClose={() => setSelectedDomain(null)}
+      />
+
+      {/* 살집이 챗 모달 — fixed CTA 클릭 시 */}
+      <SaljipChatModal
+        visible={chatOpen}
+        onClose={() => setChatOpen(false)}
+        listingTitle={detail.title}
+        ownerLabel="임대인 김 O O"
+      />
     </SafeAreaView>
   );
 }

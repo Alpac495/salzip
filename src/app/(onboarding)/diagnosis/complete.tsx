@@ -875,6 +875,13 @@ export default function CompleteScreen() {
       getLatestRecommend()
         .then((res) => {
           if (res.areas?.length) setResults(res.areas, res.match_id);
+          // 라이프스타일 태그도 복원
+          const names = (res.request as { lifestyle_tags?: string[] } | undefined)?.lifestyle_tags;
+          if (names && names.length > 0) {
+            useDiagnosisStore.setState({
+              lifestyleTags: names.map((n) => ({ id: n, name: n })),
+            });
+          }
         })
         .catch((e) => console.log('[complete] restore error', e?.response?.status))
         .finally(() => setRestoring(false));
